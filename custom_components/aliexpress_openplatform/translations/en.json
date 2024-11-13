@@ -1,0 +1,15 @@
+{
+  "config": {
+    "error": {
+      "unknown": "Unexpected error"
+    },
+    "step": {
+      "user": {
+        "description": "You need need a API KEY from [Aliexpress Openplatform](https://openservice.aliexpress.com/).",
+        "data": {
+          "api_key": "API KEY"
+        }
+      }
+    }
+  }
+}
