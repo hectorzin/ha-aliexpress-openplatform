@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 import logging
-import random
+import secrets
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
@@ -63,7 +63,7 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         # Add request to Server to get data.
         # For now, a simple random.
         return {
-            COMMISSIONS: random.randint(0, 10),
+            COMMISSIONS: secrets.randbelow(10),
         }
 
     def _mark_need_update(self) -> None:
