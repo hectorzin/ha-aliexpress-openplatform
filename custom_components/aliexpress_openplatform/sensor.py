@@ -1,106 +1,130 @@
 """Create and add sensors to Home Assistant."""
 
 from __future__ import annotations
-
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 import logging
-import secrets
-from typing import TYPE_CHECKING
-
-from typing_extensions import override
-
+from aliexpress_api import AliexpressApi, models
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.core import callback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    _DataT,
-)
-
-from .const import COMMISSIONS, CONF_APIKEY
-
-if TYPE_CHECKING:
-    from decimal import Decimal
-
-    from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
-    from homeassistant.helpers.entity_platform import AddEntitiesCallback
-    from homeassistant.helpers.typing import StateType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
+from .const import DOMAIN, CONF_APPKEY, CONF_APPSECRET
 
 _LOGGER = logging.getLogger(__name__)
 
-
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    """Initialize Aliexpress OpenPlatform Component."""
-    api_key = entry.data[CONF_APIKEY]
-    coordinator = AliexpressOpenPlatformCoordinator(hass, api_key)
-    await coordinator.async_config_entry_first_refresh()
-
-    commission = AliexpressCommissionsSensor(coordinator)
-    async_add_entities([commission])
-
+async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities) -> None:
+    """Initialize Aliexpress sensors from a configuration entry."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([
+        AliexpressCommissionsSensor(coordinator),
+        AliexpressOrderCountSensor(coordinator),
+        AliexpressTotalPaidSensor(coordinator),
+    ])
 
 class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
-    """Aliexpress OpenPlatform Coordinator."""
+    """Coordinator for managing Aliexpress order data updates."""
 
-    def __init__(self, hass: HomeAssistant, api_key: str) -> None:
-        """Initialize Coordinator."""
+    def __init__(self, hass, config_entry: ConfigEntry) -> None:
+        """Initialize the coordinator with Aliexpress API credentials and settings."""
         super().__init__(
             hass,
             _LOGGER,
             name="Aliexpress OpenPlatform",
             update_interval=timedelta(minutes=5),
         )
-        self._api_key = api_key
-        self._user_data = {}
-        self._global_data = {}
-        self._need_update_entry = True
+        app_key = config_entry.data[CONF_APPKEY]
+        app_secret = config_entry.data[CONF_APPSECRET]
+        self._client = AliexpressApi(app_key, app_secret, models.Language.ES, models.Currency.EUR)
+        self._last_orders = set()  # Track unique processed order IDs to prevent duplicates
 
-    @override
-    async def _async_update_data(self) -> _DataT:
-        # Add request to Server to get data.
-        # For now, a simple random.
-        return {
-            COMMISSIONS: secrets.randbelow(10),
-        }
+    async def _async_update_data(self) -> dict:
+        """Fetch order data from Aliexpress API and process it."""
+        try:
+            # Define date range for orders (last 180 days)
+            start_time = (datetime.utcnow() - timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S")
+            end_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    def _mark_need_update(self) -> None:
-        self._need_update_entry = True
+            # Fetch orders via Aliexpress API
+            response = await self.hass.async_add_executor_job(
+                self._client.get_order_list,
+                "Payment Completed",
+                start_time,
+                end_time,
+                ["order_number", "paid_amount", "estimated_paid_commission", "created_time"],
+                "global",
+                None,
+                50
+            )
+            _LOGGER.debug("Response from Aliexpress API: %s", response)
 
+            # Process new orders that have not been seen before
+            new_orders = [
+                order for order in response.orders.order
+                if order.order_number not in self._last_orders
+            ]
+            self._last_orders.update(order.order_number for order in new_orders)
+
+            # Calculate total values for the fetched orders
+            total_commissions = sum(float(order.estimated_paid_commission) for order in new_orders)
+            total_paid = sum(float(order.paid_amount) for order in new_orders)
+            total_orders = len(new_orders)
+
+            return {
+                "total_orders": total_orders,
+                "total_paid": total_paid,
+                "total_commissions": total_commissions
+            }
+        except Exception as err:
+            _LOGGER.error("Error fetching data from Aliexpress API: %s", err)
+            raise UpdateFailed(f"Error fetching data: {err}")
 
 class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
-    """Aliexpress Sensor."""
+    """Sensor for tracking total commissions earned."""
 
-    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
-        """Initialize all values."""
-        super().__init__(coordinator=coordinator)
-        self._state = None
-        self._attr_extra_state_attributes = {}
-        self._attr_unique_id = "aliexpress_commissions"
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_total_commissions"
         self.entity_description = SensorEntityDescription(
-            name="Aliexpress Commissions",
-            key="aliexpress_commissions",
-            has_entity_name=True,
-            icon="mdi:cash",
+            name="Total Commissions",
+            key="aliexpress_total_commissions",
+            icon="mdi:cash-multiple"
         )
 
     @property
-    @override
-    def native_value(self) -> StateType | date | datetime | Decimal:
-        return self._state
+    def native_value(self):
+        """Return the total commissions if data is available."""
+        return self.coordinator.data.get("total_commissions") if self.coordinator.data else None
 
-    @override
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        commission = self.coordinator.data[COMMISSIONS]
-        self._state = commission
-        self.async_write_ha_state()
+class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
+    """Sensor for tracking total number of orders."""
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        commission = self.coordinator.data[COMMISSIONS]
-        self._state = commission
-        self.async_write_ha_state()
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_total_orders"
+        self.entity_description = SensorEntityDescription(
+            name="Total Order Count",
+            key="aliexpress_total_orders",
+            icon="mdi:package-variant-closed"
+        )
+
+    @property
+    def native_value(self):
+        """Return the total number of orders if data is available."""
+        return self.coordinator.data.get("total_orders") if self.coordinator.data else None
+
+class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
+    """Sensor for tracking total amount paid by customers."""
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_total_paid"
+        self.entity_description = SensorEntityDescription(
+            name="Total Paid by Customers",
+            key="aliexpress_total_paid",
+            icon="mdi:currency-usd"
+        )
+
+    @property
+    def native_value(self):
+        """Return the total amount paid by customers if data is available."""
+        return self.coordinator.data.get("total_paid") if self.coordinator.data else None

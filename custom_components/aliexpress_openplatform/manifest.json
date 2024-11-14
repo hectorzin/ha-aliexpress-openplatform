@@ -6,8 +6,5 @@
   "documentation": "https://github.com/hectorzin/ha-aliexpress-openplatform",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/hectorzin/ha-aliexpress-openplatform/issues",
-  "requirements": [
-    "python-aliexpress-api==3.0.0"
-  ],
   "version": "0.0.0"
 }
