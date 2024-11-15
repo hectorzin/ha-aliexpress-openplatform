@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from aliexpress_api import AliexpressApi, models
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import SensorEntityDescription
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -15,13 +16,11 @@ from homeassistant.helpers.update_coordinator import (
 
 from .const import DOMAIN, CONF_APPKEY, CONF_APPSECRET
 
-# Imports solo para anotaciones de tipo
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.config_entries import ConfigEntry
+    from homeassistant.components.sensor import SensorEntity
 
 _LOGGER = logging.getLogger(__name__)
 
