@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Mapping
 
 from aliexpress_api import AliexpressApi, models
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.const import CURRENCY_EURO
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -55,83 +60,80 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         self._client = AliexpressApi(
             app_key, app_secret, models.Language.ES, models.Currency.EUR
         )
-        self._last_orders = (
-            set()
-        )  # Track unique processed order IDs to prevent duplicates
 
     async def _async_update_data(self) -> dict:
         """Fetch order data from Aliexpress API and process it."""
         try:
             # Define date range for orders (last 180 days)
-            now = datetime.now(tz=timezone.utc)
-            start_time = (now - timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S")
-            end_time = now.strftime("%Y-%m-%d %H:%M:%S")
-
             # Fetch orders via Aliexpress API
-            response = await self.hass.async_add_executor_job(
-                self._client.get_order_list,  # pylint: disable=no-member
-                "Payment Completed",
-                start_time,
-                end_time,
-                [
-                    "order_number",
-                    "paid_amount",
-                    "estimated_paid_commission",
-                    "created_time",
-                ],
-                "global",
-                None,
-                50,
+
+            now = datetime.now(tz=timezone.utc)
+            start_time = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+            response = await self._get_data(start_time, 0)
+            orders = response.orders.order
+
+            total_paid = sum(float(order.paid_amount) for order in orders)
+            total_commissions = sum(
+                float(order.estimated_paid_commission) for order in orders
             )
-            _LOGGER.debug("Response from Aliexpress API: %s", response)
 
-        except KeyError as key_err:
-            error_message = f"Unexpected data structure: {key_err}"
-            _LOGGER.exception(error_message)
-            raise UpdateFailed(error_message) from key_err
-
-        except ValueError as val_err:
-            error_message = f"Data parsing error: {val_err}"
-            _LOGGER.exception(error_message)
-            raise UpdateFailed(error_message) from val_err
+            while response.current_page_no < response.total_page_no - 1:
+                response = await self._get_data(
+                    start_time, response.current_page_no + 1
+                )
+                orders = response.orders.order
+                total_paid += sum(float(order.paid_amount) for order in orders)
+                total_commissions += sum(
+                    float(order.estimated_paid_commission) for order in orders
+                )
 
         except Exception as err:
             error_message = "An unexpected error occurred"
             _LOGGER.exception(error_message)
             raise UpdateFailed(error_message) from err
-        # Process new orders that have not been seen before
-        new_orders = [
-            order
-            for order in response.orders.order
-            if order.order_number not in self._last_orders
-        ]
-        self._last_orders.update(order.order_number for order in new_orders)
-
-        # Calculate total values for the fetched orders
-        total_commissions = sum(
-            float(order.estimated_paid_commission) for order in new_orders
-        )
-        total_paid = sum(float(order.paid_amount) for order in new_orders)
-        total_orders = len(new_orders)
 
         return {
-            "total_orders": total_orders,
             "total_paid": total_paid,
             "total_commissions": total_commissions,
+            "total_orders": response.total_record_count,
+            "last_reset": start_time,
         }
+
+    async def _get_data(
+        self, start_time: datetime, page: int
+    ) -> models.OrderListResponse:
+        now = datetime.now(tz=timezone.utc)
+        return await self.hass.async_add_executor_job(
+            self._client.get_order_list,  # pylint: disable=no-member
+            "Payment Completed",
+            start_time.strftime("%Y-%m-%d %H:%M:%S"),
+            now.strftime("%Y-%m-%d %H:%M:%S"),
+            [
+                "order_number",
+                "paid_amount",
+                "estimated_paid_commission",
+                "created_time",
+            ],
+            "global",
+            page,
+            50,
+        )
 
 
 class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
     """Sensor for tracking total commissions earned."""
 
     def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
-        """Initialize the Total commissions sensor."""
+        """Initialize the Total commissions' sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = "aliexpress_total_commissions"
         self.entity_description = SensorEntityDescription(
             name="Total Commissions",
             key="aliexpress_total_commissions",
             icon="mdi:cash-multiple",
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=CURRENCY_EURO,
         )
 
     @property
@@ -142,6 +144,15 @@ class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
             if self.coordinator.data
             else None
         )
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }
 
 
 class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
@@ -155,6 +166,7 @@ class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
             name="Total Order Count",
             key="aliexpress_total_orders",
             icon="mdi:package-variant-closed",
+            state_class=SensorStateClass.TOTAL_INCREASING,
         )
 
     @property
@@ -163,6 +175,15 @@ class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
         return (
             self.coordinator.data.get("total_orders") if self.coordinator.data else None
         )
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }
 
 
 class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
@@ -176,6 +197,8 @@ class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
             name="Total Paid by Customers",
             key="aliexpress_total_paid",
             icon="mdi:currency-usd",
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=CURRENCY_EURO,
         )
 
     @property
@@ -184,3 +207,12 @@ class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
         return (
             self.coordinator.data.get("total_paid") if self.coordinator.data else None
         )
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }
