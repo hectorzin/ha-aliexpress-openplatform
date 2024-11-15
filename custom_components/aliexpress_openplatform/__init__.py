@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up Aliexpress OpenPlatform from a config entry."""
     # Check if the coordinator already exists to avoid double setup
@@ -36,16 +37,22 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     await coordinator.async_config_entry_first_refresh()
 
     # Register the listener for option updates
-    config_entry.async_on_unload(config_entry.add_update_listener(_async_update_options))
+    config_entry.async_on_unload(
+        config_entry.add_update_listener(_async_update_options)
+    )
 
     return True
 
+
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Unload an Aliexpress OpenPlatform config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        config_entry, PLATFORMS
+    )
     if unload_ok:
         hass.data[DOMAIN].pop(config_entry.entry_id)
     return unload_ok
+
 
 async def _async_update_options(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
     """Handle options update."""

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Aliexpress OpenPlatform."""
 
@@ -33,7 +34,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             await self.async_set_unique_id("aliexpress")
-            return self.async_create_entry(title="Aliexpress OpenPlatform", data=user_input)
+            return self.async_create_entry(
+                title="Aliexpress OpenPlatform", data=user_input
+            )
 
         # Request api_key and api_secret in the form
         return self.async_show_form(
