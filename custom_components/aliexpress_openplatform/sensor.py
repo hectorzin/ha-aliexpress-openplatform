@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import logging
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -20,12 +20,15 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .const import CONF_APPKEY, CONF_APPSECRET, DOMAIN
+from .const import CONF_APP_KEY, CONF_APP_SECRET, DOMAIN
 
 if TYPE_CHECKING:
+    from decimal import Decimal
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
+    from homeassistant.helpers.typing import StateType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,8 +58,8 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             name="Aliexpress OpenPlatform",
             update_interval=timedelta(minutes=5),
         )
-        app_key = config_entry.data[CONF_APPKEY]
-        app_secret = config_entry.data[CONF_APPSECRET]
+        app_key = config_entry.data[CONF_APP_KEY]
+        app_secret = config_entry.data[CONF_APP_SECRET]
         self._client = AliexpressApi(
             app_key, app_secret, models.Language.ES, models.Currency.EUR
         )
@@ -137,7 +140,7 @@ class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
         )
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> StateType | date | datetime | Decimal:
         """Return the total commissions if data is available."""
         return (
             self.coordinator.data.get("total_commissions")
@@ -170,7 +173,7 @@ class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
         )
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> StateType | date | datetime | Decimal:
         """Return the total number of orders if data is available."""
         return (
             self.coordinator.data.get("total_orders") if self.coordinator.data else None
@@ -202,7 +205,7 @@ class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
         )
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> StateType | date | datetime | Decimal:
         """Return the total amount paid by customers if data is available."""
         return (
             self.coordinator.data.get("total_paid") if self.coordinator.data else None
