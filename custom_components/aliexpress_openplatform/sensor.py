@@ -6,7 +6,6 @@ import logging
 from aliexpress_api import AliexpressApi, models
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
 from .const import DOMAIN, CONF_APPKEY, CONF_APPSECRET
 
@@ -46,7 +45,7 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
 
             # Fetch orders via Aliexpress API
             response = await self.hass.async_add_executor_job(
-                self._client.get_order_list,
+                self._client.get_order_list,   # pylint: disable=no-member
                 "Payment Completed",
                 start_time,
                 end_time,
@@ -76,7 +75,7 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             }
         except Exception as err:
             _LOGGER.error("Error fetching data from Aliexpress API: %s", err)
-            raise UpdateFailed(f"Error fetching data: {err}")
+            raise UpdateFailed(f"Error fetching data: {err}") from err
 
 class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
     """Sensor for tracking total commissions earned."""
