@@ -7,7 +7,8 @@
       "user": {
         "description": "You need need a API KEY from [Aliexpress Openplatform](https://openservice.aliexpress.com/).",
         "data": {
-          "api_key": "API KEY"
+          "app_key": "API KEY",
+          "app_secret": "API Secret"
         }
       }
     }

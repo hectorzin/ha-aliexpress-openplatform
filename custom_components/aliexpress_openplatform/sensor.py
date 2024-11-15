@@ -1,23 +1,26 @@
-"""Create and add sensors to Home Assistant."""
+"""Create and add Aliexpress sensors to Home Assistant."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import logging
-import secrets
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Mapping
 
-from typing_extensions import override
+from aliexpress_api import AliexpressApi, models
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.core import callback
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.const import CURRENCY_EURO
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
-    _DataT,
+    UpdateFailed,
 )
 
-from .const import COMMISSIONS, CONF_APIKEY
+from .const import CONF_APP_KEY, CONF_APP_SECRET, DOMAIN
 
 if TYPE_CHECKING:
     from decimal import Decimal
@@ -33,74 +36,186 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Initialize Aliexpress OpenPlatform Component."""
-    api_key = entry.data[CONF_APIKEY]
-    coordinator = AliexpressOpenPlatformCoordinator(hass, api_key)
-    await coordinator.async_config_entry_first_refresh()
-
-    commission = AliexpressCommissionsSensor(coordinator)
-    async_add_entities([commission])
+    """Initialize Aliexpress sensors from a configuration entry."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities(
+        [
+            AliexpressCommissionsSensor(coordinator),
+            AliexpressOrderCountSensor(coordinator),
+            AliexpressTotalPaidSensor(coordinator),
+        ]
+    )
 
 
 class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
-    """Aliexpress OpenPlatform Coordinator."""
+    """Coordinator for managing Aliexpress order data updates."""
 
-    def __init__(self, hass: HomeAssistant, api_key: str) -> None:
-        """Initialize Coordinator."""
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+        """Initialize the coordinator with Aliexpress API credentials and settings."""
         super().__init__(
             hass,
             _LOGGER,
             name="Aliexpress OpenPlatform",
             update_interval=timedelta(minutes=5),
         )
-        self._api_key = api_key
-        self._user_data = {}
-        self._global_data = {}
-        self._need_update_entry = True
+        app_key = config_entry.data[CONF_APP_KEY]
+        app_secret = config_entry.data[CONF_APP_SECRET]
+        self._client = AliexpressApi(
+            app_key, app_secret, models.Language.ES, models.Currency.EUR
+        )
 
-    @override
-    async def _async_update_data(self) -> _DataT:
-        # Add request to Server to get data.
-        # For now, a simple random.
+    async def _async_update_data(self) -> dict:
+        """Fetch order data from Aliexpress API and process it."""
+        try:
+            # Define date range for orders (last 180 days)
+            # Fetch orders via Aliexpress API
+
+            now = datetime.now(tz=timezone.utc)
+            start_time = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+            response = await self._get_data(start_time, 0)
+            orders = response.orders.order
+
+            total_paid = sum(float(order.paid_amount) for order in orders)
+            total_commissions = sum(
+                float(order.estimated_paid_commission) for order in orders
+            )
+
+            while response.current_page_no < response.total_page_no - 1:
+                response = await self._get_data(
+                    start_time, response.current_page_no + 1
+                )
+                orders = response.orders.order
+                total_paid += sum(float(order.paid_amount) for order in orders)
+                total_commissions += sum(
+                    float(order.estimated_paid_commission) for order in orders
+                )
+
+        except Exception as err:
+            error_message = "An unexpected error occurred"
+            _LOGGER.exception(error_message)
+            raise UpdateFailed(error_message) from err
+
         return {
-            COMMISSIONS: secrets.randbelow(10),
+            "total_paid": total_paid,
+            "total_commissions": total_commissions,
+            "total_orders": response.total_record_count,
+            "last_reset": start_time,
         }
 
-    def _mark_need_update(self) -> None:
-        self._need_update_entry = True
+    async def _get_data(
+        self, start_time: datetime, page: int
+    ) -> models.OrderListResponse:
+        now = datetime.now(tz=timezone.utc)
+        return await self.hass.async_add_executor_job(
+            self._client.get_order_list,  # pylint: disable=no-member
+            "Payment Completed",
+            start_time.strftime("%Y-%m-%d %H:%M:%S"),
+            now.strftime("%Y-%m-%d %H:%M:%S"),
+            [
+                "order_number",
+                "paid_amount",
+                "estimated_paid_commission",
+                "created_time",
+            ],
+            "global",
+            page,
+            50,
+        )
 
 
 class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
-    """Aliexpress Sensor."""
+    """Sensor for tracking total commissions earned."""
 
     def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
-        """Initialize all values."""
-        super().__init__(coordinator=coordinator)
-        self._state = None
-        self._attr_extra_state_attributes = {}
-        self._attr_unique_id = "aliexpress_commissions"
+        """Initialize the Total commissions' sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_total_commissions"
         self.entity_description = SensorEntityDescription(
-            name="Aliexpress Commissions",
-            key="aliexpress_commissions",
-            has_entity_name=True,
-            icon="mdi:cash",
+            name="Total Commissions",
+            key="aliexpress_total_commissions",
+            icon="mdi:cash-multiple",
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=CURRENCY_EURO,
         )
 
     @property
-    @override
     def native_value(self) -> StateType | date | datetime | Decimal:
-        return self._state
+        """Return the total commissions if data is available."""
+        return (
+            self.coordinator.data.get("total_commissions")
+            if self.coordinator.data
+            else None
+        )
 
-    @override
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        commission = self.coordinator.data[COMMISSIONS]
-        self._state = commission
-        self.async_write_ha_state()
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        commission = self.coordinator.data[COMMISSIONS]
-        self._state = commission
-        self.async_write_ha_state()
+
+class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
+    """Sensor for tracking total number of orders."""
+
+    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
+        """Initialize the Total orders sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_total_orders"
+        self.entity_description = SensorEntityDescription(
+            name="Total Order Count",
+            key="aliexpress_total_orders",
+            icon="mdi:package-variant-closed",
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        )
+
+    @property
+    def native_value(self) -> StateType | date | datetime | Decimal:
+        """Return the total number of orders if data is available."""
+        return (
+            self.coordinator.data.get("total_orders") if self.coordinator.data else None
+        )
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }
+
+
+class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
+    """Sensor for tracking total amount paid by customers."""
+
+    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
+        """Initialize the Total paid sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_total_paid"
+        self.entity_description = SensorEntityDescription(
+            name="Total Paid by Customers",
+            key="aliexpress_total_paid",
+            icon="mdi:currency-usd",
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=CURRENCY_EURO,
+        )
+
+    @property
+    def native_value(self) -> StateType | date | datetime | Decimal:
+        """Return the total amount paid by customers if data is available."""
+        return (
+            self.coordinator.data.get("total_paid") if self.coordinator.data else None
+        )
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }

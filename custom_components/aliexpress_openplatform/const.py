@@ -1,5 +1,5 @@
 """Constants for Aliexpress Openplatform."""
 
 DOMAIN = "aliexpress_openplatform"
-CONF_APIKEY = "API_KEY"
-COMMISSIONS = "commissions"
+CONF_APP_KEY = "app_key"
+CONF_APP_SECRET = "app_secret"  # noqa: S105
