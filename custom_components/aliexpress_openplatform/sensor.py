@@ -8,13 +8,15 @@ import logging
 
 from aliexpress_api import AliexpressApi, models
 
+from homeassistant.components.sensor import SensorEntityDescription
+
 from .const import DOMAIN, CONF_APPKEY, CONF_APPSECRET
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+    from homeassistant.components.sensor import SensorEntity
     from homeassistant.helpers.update_coordinator import (
         CoordinatorEntity,
         DataUpdateCoordinator,
