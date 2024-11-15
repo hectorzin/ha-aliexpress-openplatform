@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, dict
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
