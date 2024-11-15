@@ -7,8 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from aliexpress_api import AliexpressApi, models
-from homeassistant.components.sensor import (SensorEntity,
-                                             SensorEntityDescription)
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
                                                       DataUpdateCoordinator,
                                                       UpdateFailed)
