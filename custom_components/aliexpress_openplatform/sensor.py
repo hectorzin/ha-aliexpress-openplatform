@@ -1,16 +1,21 @@
 """Create and add sensors to Home Assistant."""
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from datetime import datetime, timedelta, timezone
 import logging
+
 from aliexpress_api import AliexpressApi, models
+
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity, DataUpdateCoordinator, UpdateFailed,
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from typing import TYPE_CHECKING
 from .const import DOMAIN, CONF_APPKEY, CONF_APPSECRET
 
 if TYPE_CHECKING:
@@ -77,24 +82,23 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.exception("Unexpected error occurred")
             raise UpdateFailed("An unexpected error occurred") from err
-        else:
-            # Process new orders that have not been seen before
-            new_orders = [
-                order for order in response.orders.order
-                if order.order_number not in self._last_orders
-            ]
-            self._last_orders.update(order.order_number for order in new_orders)
+        # Process new orders that have not been seen before
+        new_orders = [
+            order for order in response.orders.order
+            if order.order_number not in self._last_orders
+        ]
+        self._last_orders.update(order.order_number for order in new_orders)
 
-            # Calculate total values for the fetched orders
-            total_commissions = sum(float(order.estimated_paid_commission) for order in new_orders)
-            total_paid = sum(float(order.paid_amount) for order in new_orders)
-            total_orders = len(new_orders)
+        # Calculate total values for the fetched orders
+        total_commissions = sum(float(order.estimated_paid_commission) for order in new_orders)
+        total_paid = sum(float(order.paid_amount) for order in new_orders)
+        total_orders = len(new_orders)
 
-            return {
-                "total_orders": total_orders,
-                "total_paid": total_paid,
-                "total_commissions": total_commissions
-            }
+        return {
+            "total_orders": total_orders,
+            "total_paid": total_paid,
+            "total_commissions": total_commissions
+        }
 
 
 class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
