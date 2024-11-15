@@ -8,18 +8,18 @@ import logging
 
 from aliexpress_api import AliexpressApi, models
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN, CONF_APPKEY, CONF_APPSECRET
 
 if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.config_entries import ConfigEntry
+    from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+    from homeassistant.helpers.update_coordinator import (
+        CoordinatorEntity,
+        DataUpdateCoordinator,
+        UpdateFailed,
+    )
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,16 +72,19 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Response from Aliexpress API: %s", response)
 
         except KeyError as key_err:
-            _LOGGER.error("Unexpected data structure: %s", key_err)
-            raise UpdateFailed(f"Data structure error: {key_err}") from key_err
+            error_message = f"Unexpected data structure: {key_err}"
+            _LOGGER.exception(error_message)
+            raise UpdateFailed(error_message) from key_err
 
         except ValueError as val_err:
-            _LOGGER.error("Data parsing error: %s", val_err)
-            raise UpdateFailed(f"Data parsing error: {val_err}") from val_err
+            error_message = f"Data parsing error: {val_err}"
+            _LOGGER.exception(error_message)
+            raise UpdateFailed(error_message) from val_err
 
         except Exception as err:
-            _LOGGER.exception("Unexpected error occurred")
-            raise UpdateFailed("An unexpected error occurred") from err
+            error_message = "An unexpected error occurred"
+            _LOGGER.exception(error_message)
+            raise UpdateFailed(error_message) from err
         # Process new orders that have not been seen before
         new_orders = [
             order for order in response.orders.order
