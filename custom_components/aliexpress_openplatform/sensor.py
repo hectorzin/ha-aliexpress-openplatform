@@ -55,7 +55,7 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         self._client = AliexpressApi(
             app_key, app_secret, models.Language.ES, models.Currency.EUR
         )
-        self._last_orders: Set[str] = set()
+        self._last_orders: Set[str] = Set()
         self._last_orders = (
             set()
         )  # Track unique processed order IDs to prevent duplicates

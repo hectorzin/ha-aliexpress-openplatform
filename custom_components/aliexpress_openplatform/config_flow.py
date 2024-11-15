@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict
 
 import voluptuous as vol
 
@@ -24,7 +24,7 @@ class ConfigFlow(config_entries.ConfigFlow):
 
     def __init__(self) -> None:
         """Initialize values."""
-        self._errors = {}
+        self._errors: Dict[str, str] = {} 
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
