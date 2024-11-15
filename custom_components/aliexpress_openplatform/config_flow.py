@@ -24,7 +24,7 @@ class ConfigFlow(config_entries.ConfigFlow):
 
     def __init__(self) -> None:
         """Initialize values."""
-        self._errors: dict[str, str] = {} 
+        self._errors: dict[str, str] = {}
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

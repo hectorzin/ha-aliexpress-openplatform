@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import TYPE_CHECKING, Set
+from typing import TYPE_CHECKING
 
 from aliexpress_api import AliexpressApi, models
 
