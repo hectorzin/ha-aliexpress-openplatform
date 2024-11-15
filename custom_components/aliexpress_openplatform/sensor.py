@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING
 
 from aliexpress_api import AliexpressApi, models
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.helpers.update_coordinator import (CoordinatorEntity,
-                                                      DataUpdateCoordinator,
-                                                      UpdateFailed)
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .const import CONF_APPKEY, CONF_APPSECRET, DOMAIN
 
