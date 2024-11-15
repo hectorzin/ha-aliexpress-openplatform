@@ -2,26 +2,26 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-from datetime import datetime, timedelta, timezone
 import logging
+from datetime import datetime, timedelta, timezone
 
 from aliexpress_api import AliexpressApi, models
-
-from homeassistant.components.sensor import SensorEntityDescription
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .const import DOMAIN, CONF_APPKEY, CONF_APPSECRET
+
+# Imports solo para anotaciones de tipo
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.components.sensor import SensorEntity
-    from homeassistant.helpers.update_coordinator import (
-        CoordinatorEntity,
-        DataUpdateCoordinator,
-        UpdateFailed,
-    )
 
 _LOGGER = logging.getLogger(__name__)
 
