@@ -1,4 +1,4 @@
-"""Create and add sensors to Home Assistant."""
+"""Create and add Aliexpress sensors to Home Assistant."""
 
 from __future__ import annotations
 
