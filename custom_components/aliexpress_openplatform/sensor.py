@@ -81,8 +81,6 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
                     "created_time",
                 ],
                 "global",
-                None,
-                50,
             )
             _LOGGER.debug("Response from Aliexpress API: %s", response)
 

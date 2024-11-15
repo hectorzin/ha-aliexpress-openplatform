@@ -9,7 +9,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 
-from .const import CONF_APPKEY, CONF_APPSECRET
+from .const import CONF_APPKEY, CONF_APPSECRET, DOMAIN
 
 if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-class ConfigFlow(config_entries.ConfigFlow):
+class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Aliexpress OpenPlatform."""
 
     VERSION = 1
