@@ -76,19 +76,17 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             response = await self._get_data(start_time, 0)
             orders = response.orders.order
 
-            total_paid = sum(float(order.paid_amount) for order in orders)
-            total_commissions = sum(
-                float(order.estimated_paid_commission) for order in orders
-            )
+            total_paid = sum(order.paid_amount for order in orders)
+            total_commissions = sum(order.estimated_paid_commission for order in orders)
 
             while response.current_page_no < response.total_page_no - 1:
                 response = await self._get_data(
                     start_time, response.current_page_no + 1
                 )
                 orders = response.orders.order
-                total_paid += sum(float(order.paid_amount) for order in orders)
+                total_paid += sum(order.paid_amount for order in orders)
                 total_commissions += sum(
-                    float(order.estimated_paid_commission) for order in orders
+                    order.estimated_paid_commission for order in orders
                 )
 
         except Exception as err:
@@ -97,8 +95,8 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(error_message) from err
 
         return {
-            "total_paid": total_paid,
-            "total_commissions": total_commissions,
+            "total_paid": total_paid / 100.0,
+            "total_commissions": total_commissions / 100.0,
             "total_orders": response.total_record_count,
             "last_reset": start_time,
         }
