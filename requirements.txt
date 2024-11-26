@@ -1,3 +1,2 @@
 typing_extensions
 homeassistant
-git+https://github.com/hectorzin/python-aliexpress-api.git@main#egg=python-aliexpress-api
