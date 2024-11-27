@@ -27,6 +27,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 src = ["custom_components/aliexpress-openplatform"]
+exclude = ["custom_components/aliexpress_openplatform/aliexpress_api/"]
 
 [tool.ruff.lint]
 ignore = [
