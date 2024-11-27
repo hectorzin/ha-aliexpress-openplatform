@@ -66,6 +66,9 @@ known-first-party = [
 ]
 combine-as-imports = true
 
+[tool.pylint.MASTER]
+ignore = ["aliexpress_api"]
+
 [tool.pylint."MESSAGES CONTROL"]
 # Reasons disabled:
 # format - handled by ruff
