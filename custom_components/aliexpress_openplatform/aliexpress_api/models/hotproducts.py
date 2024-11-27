@@ -1,5 +1,6 @@
-from .product import Product
 from typing import List
+
+from .product import Product
 
 
 class HotProductsResponse:

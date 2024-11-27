@@ -1,5 +1,7 @@
-from .order import Order
 from typing import List
+
+from .order import Order
+
 
 class OrderListResponse:
     total_record_count: int

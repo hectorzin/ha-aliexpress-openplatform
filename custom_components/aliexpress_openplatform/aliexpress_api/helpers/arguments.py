@@ -1,5 +1,5 @@
-from ..tools.get_product_id import get_product_id
 from ..errors.exceptions import InvalidArgumentException
+from ..tools.get_product_id import get_product_id
 
 
 def get_list_as_string(value):
@@ -10,18 +10,22 @@ def get_list_as_string(value):
         return value
 
     elif isinstance(value, list):
-        return ','.join(value)
+        return ",".join(value)
 
     else:
-        raise InvalidArgumentException('Argument should be a list or string: ' + str(value))
+        raise InvalidArgumentException(
+            "Argument should be a list or string: " + str(value)
+        )
 
 
 def get_product_ids(values):
     if isinstance(values, str):
-        values = values.split(',')
+        values = values.split(",")
 
     elif not isinstance(values, list):
-        raise InvalidArgumentException('Argument product_ids should be a list or string')
+        raise InvalidArgumentException(
+            "Argument product_ids should be a list or string"
+        )
 
     product_ids = []
     for value in values:

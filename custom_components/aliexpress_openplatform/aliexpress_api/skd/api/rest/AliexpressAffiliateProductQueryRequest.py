@@ -1,6 +1,5 @@
-"""
-Created by auto_sdk on 2021.05.20
-"""
+"""Created by auto_sdk on 2021.05.20"""
+
 from ..base import RestApi
 
 

@@ -5,37 +5,44 @@ to get product information and affiliate links from AliExpress using the officia
 API in an easier way.
 """
 
+from typing import List, Union
+
+from . import models
+from .errors import (
+    InvalidTrackingIdException,
+    OrdersNotFoundException,
+    ProductsNotFoudException,
+)
 from .errors.exceptions import CategoriesNotFoudException
+from .helpers import api_request, get_list_as_string, get_product_ids, parse_products
 from .helpers.categories import filter_child_categories, filter_parent_categories
 from .models.category import ChildCategory
-from .skd import setDefaultAppInfo
-from .skd import api as aliapi
-from .errors import ProductsNotFoudException, InvalidTrackingIdException, OrdersNotFoundException
-from .helpers import api_request, parse_products, get_list_as_string, get_product_ids
-from . import models
-
-from typing import List, Union
+from .skd import api as aliapi, setDefaultAppInfo
 
 
 class AliexpressApi:
     """Provides methods to get information from AliExpress using your API credentials.
 
     Args:
+    ----
         key (str): Your API key.
         secret (str): Your API secret.
         language (str): Language code. Defaults to EN.
         currency (str): Currency code. Defaults to USD.
         tracking_id (str): The tracking id for link generator. Defaults to None.
+
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         key: str,
         secret: str,
         language: models.Language,
         currency: models.Currency,
         tracking_id: str = None,
         app_signature: str = None,
-        **kwargs):
+        **kwargs,
+    ):
         self._key = key
         self._secret = secret
         self._tracking_id = tracking_id
@@ -45,28 +52,33 @@ class AliexpressApi:
         self.categories = None
         setDefaultAppInfo(self._key, self._secret)
 
-
-    def get_products_details(self,
+    def get_products_details(
+        self,
         product_ids: Union[str, List[str]],
         fields: Union[str, List[str]] = None,
         country: str = None,
-        **kwargs) -> List[models.Product]:
+        **kwargs,
+    ) -> List[models.Product]:
         """Get products information.
 
         Args:
+        ----
             product_ids (``str | list[str]``): One or more links or product IDs.
             fields (``str | list[str]``): The fields to include in the results. Defaults to all.
             country (``str``): Filter products that can be sent to that country. Returns the price
                 according to the country's tax rate policy.
 
         Returns:
+        -------
             ``list[models.Product]``: A list of products.
 
         Raises:
+        ------
             ``ProductsNotFoudException``
             ``InvalidArgumentException``
             ``ApiRequestException``
             ``ApiRequestResponseException``
+
         """
         product_ids = get_product_ids(product_ids)
         product_ids = get_list_as_string(product_ids)
@@ -80,38 +92,47 @@ class AliexpressApi:
         request.target_language = self._language
         request.tracking_id = self._tracking_id
 
-        response = api_request(request, 'aliexpress_affiliate_productdetail_get_response')
+        response = api_request(
+            request, "aliexpress_affiliate_productdetail_get_response"
+        )
 
         if response.current_record_count > 0:
             response = parse_products(response.products.product)
             return response
         else:
-            raise ProductsNotFoudException('No products found with current parameters')
+            raise ProductsNotFoudException("No products found with current parameters")
 
-
-    def get_affiliate_links(self,
+    def get_affiliate_links(
+        self,
         links: Union[str, List[str]],
         link_type: models.LinkType = models.LinkType.NORMAL,
-        **kwargs) -> List[models.AffiliateLink]:
+        **kwargs,
+    ) -> List[models.AffiliateLink]:
         """Converts a list of links in affiliate links.
 
         Args:
+        ----
             links (``str | list[str]``): One or more links to convert.
             link_type (``models.LinkType``): Choose between normal link with standard commission
                 or hot link with hot product commission. Defaults to NORMAL.
 
         Returns:
+        -------
             ``list[models.AffiliateLink]``: A list containing the affiliate links.
 
         Raises:
+        ------
             ``InvalidArgumentException``
             ``InvalidTrackingIdException``
             ``ProductsNotFoudException``
             ``ApiRequestException``
             ``ApiRequestResponseException``
+
         """
         if not self._tracking_id:
-            raise InvalidTrackingIdException('The tracking id is required for affiliate links')
+            raise InvalidTrackingIdException(
+                "The tracking id is required for affiliate links"
+            )
 
         links = get_list_as_string(links)
 
@@ -121,30 +142,32 @@ class AliexpressApi:
         request.promotion_link_type = link_type
         request.tracking_id = self._tracking_id
 
-        response = api_request(request, 'aliexpress_affiliate_link_generate_response')
+        response = api_request(request, "aliexpress_affiliate_link_generate_response")
 
         if response.total_result_count > 0:
             return response.promotion_links.promotion_link
         else:
-            raise ProductsNotFoudException('Affiliate links not available')
+            raise ProductsNotFoudException("Affiliate links not available")
 
-
-    def get_hotproducts(self,
+    def get_hotproducts(
+        self,
         category_ids: Union[str, List[str]] = None,
         delivery_days: int = None,
-		fields: Union[str, List[str]] = None,
-		keywords: str = None,
-		max_sale_price: int = None,
-		min_sale_price: int = None,
-		page_no: int = None,
-		page_size: int = None,
-		platform_product_type: models.ProductType = None,
-		ship_to_country: str = None,
-		sort: models.SortBy = None,
-        **kwargs) -> models.HotProductsResponse:
+        fields: Union[str, List[str]] = None,
+        keywords: str = None,
+        max_sale_price: int = None,
+        min_sale_price: int = None,
+        page_no: int = None,
+        page_size: int = None,
+        platform_product_type: models.ProductType = None,
+        ship_to_country: str = None,
+        sort: models.SortBy = None,
+        **kwargs,
+    ) -> models.HotProductsResponse:
         """Search for affiliated products with high commission.
 
         Args:
+        ----
             category_ids (``str | list[str]``): One or more category IDs.
             delivery_days (``int``): Estimated delivery days.
             fields (``str | list[str]``): The fields to include in the results list. Defaults to all.
@@ -161,12 +184,15 @@ class AliexpressApi:
             sort (``models.SortBy``): Specifies the sort method.
 
         Returns:
+        -------
             ``models.HotProductsResponse``: Contains response information and the list of products.
 
         Raises:
+        ------
             ``ProductsNotFoudException``
             ``ApiRequestException``
             ``ApiRequestResponseException``
+
         """
         request = aliapi.rest.AliexpressAffiliateHotproductQueryRequest()
         request.app_signature = self._app_signature
@@ -185,97 +211,110 @@ class AliexpressApi:
         request.target_language = self._language
         request.tracking_id = self._tracking_id
 
-        response = api_request(request, 'aliexpress_affiliate_hotproduct_query_response')
+        response = api_request(
+            request, "aliexpress_affiliate_hotproduct_query_response"
+        )
         print(f"Response: {response}")
 
         if response.current_record_count > 0:
             response.products = parse_products(response.products.product)
             return response
         else:
-            raise ProductsNotFoudException('No products found with current parameters')
-
+            raise ProductsNotFoudException("No products found with current parameters")
 
     def get_categories(self, **kwargs) -> List[Union[models.Category, ChildCategory]]:
         """Get all available categories, both parent and child.
 
-        Returns:
+        Returns
+        -------
             ``list[models.Category | models.ChildCategory]``: A list of categories.
 
-        Raises:
+        Raises
+        ------
             ``CategoriesNotFoudException``
             ``ApiRequestException``
             ``ApiRequestResponseException``
+
         """
         request = aliapi.rest.AliexpressAffiliateCategoryGetRequest()
         request.app_signature = self._app_signature
 
-        response = api_request(request, 'aliexpress_affiliate_category_get_response')
+        response = api_request(request, "aliexpress_affiliate_category_get_response")
 
         if response.total_result_count > 0:
             self.categories = response.categories.category
             return self.categories
         else:
-            raise CategoriesNotFoudException('No categories found')
-
+            raise CategoriesNotFoudException("No categories found")
 
     def get_parent_categories(self, use_cache=True, **kwargs) -> List[models.Category]:
         """Get all available parent categories.
 
         Args:
+        ----
             use_cache (``bool``): Uses cached categories to reduce API requests.
 
         Returns:
+        -------
             ``list[models.Category]``: A list of parent categories.
 
         Raises:
+        ------
             ``CategoriesNotFoudException``
             ``ApiRequestException``
             ``ApiRequestResponseException``
+
         """
         if not use_cache or not self.categories:
             self.get_categories()
         return filter_parent_categories(self.categories)
 
-
-    def get_child_categories(self, parent_category_id: int, use_cache=True, **kwargs) -> List[models.ChildCategory]:
+    def get_child_categories(
+        self, parent_category_id: int, use_cache=True, **kwargs
+    ) -> List[models.ChildCategory]:
         """Get all available child categories for a specific parent category.
 
         Args:
+        ----
             parent_category_id (``int``): The parent category id.
             use_cache (``bool``): Uses cached categories to reduce API requests.
 
         Returns:
+        -------
             ``list[models.ChildCategory]``: A list of child categories.
 
         Raises:
+        ------
             ``CategoriesNotFoudException``
             ``ApiRequestException``
             ``ApiRequestResponseException``
+
         """
         if not use_cache or not self.categories:
             self.get_categories()
         return filter_child_categories(self.categories, parent_category_id)
 
-
-    def smart_match_product(self,
-            device_id: str,
-            app: str = None,
-            country: str = None,
-            device: str = None,
-            fields: Union[str, List[str]] = None,
-            keywords: str = None,
-            page_no: int = None,
-            product_id: str = None,
-            site: str = None,
-            target_currency: str = None,
-            target_language: str = None,
-            tracking_id: str = None,
-            user: str = None,
-            **kwargs) -> models.HotProductsResponse:
-        """
-        Get affiliated products using smart match based on keyword and device information.
+    def smart_match_product(
+        self,
+        device_id: str,
+        app: str = None,
+        country: str = None,
+        device: str = None,
+        fields: Union[str, List[str]] = None,
+        keywords: str = None,
+        page_no: int = None,
+        product_id: str = None,
+        site: str = None,
+        target_currency: str = None,
+        target_language: str = None,
+        tracking_id: str = None,
+        user: str = None,
+        **kwargs,
+    ) -> models.HotProductsResponse:
+        """Get affiliated products using smart match based on keyword and device information.
 
         Args:
+        ----
             country (``str``): Country code for target location.
             device (``str``): Device type for targeting (e.g., "mobile", "desktop").
             device_id (``str``): Unique device ID.
@@ -290,15 +329,18 @@ class AliexpressApi:
             user (``str``): User identifier for additional targeting (optional).
 
         Returns:
+        -------
             ``models.ProductSmartmatchResponse``: Contains response information and the list of products.
 
         Raises:
+        ------
             ``ProductsNotFoundException``
             ``ApiRequestException``
             ``ApiRequestResponseException``
+
         """
         request = aliapi.rest.AliexpressAffiliateProductSmartmatchRequest()
-        request.app = app,
+        request.app = (app,)
         request.app_signature = self._app_signature
         request.country = country
         request.device = device
@@ -313,27 +355,31 @@ class AliexpressApi:
         request.tracking_id = tracking_id
         request.user = user
 
-        response = api_request(request, 'aliexpress_affiliate_product_smartmatch_response')
+        response = api_request(
+            request, "aliexpress_affiliate_product_smartmatch_response"
+        )
 
-        if hasattr(response, 'products') and response.products:
+        if hasattr(response, "products") and response.products:
             response.products = parse_products(response.products.product)
             return response
         else:
-            raise ProductsNotFoudException('No products found with current parameters')
-        
-    def get_order_list(self,
-                       status: str,
-                       end_time: str,
-                       start_time: str = None,
-                       fields: Union[str, List[str]] = None,
-                       locale_site: str = None,
-                       page_no: int = None,
-                       page_size: int = None,
-                       **kwargs) -> models.OrderListResponse:
-        """
-        Retrieve a list of affiliate orders from AliExpress.
+            raise ProductsNotFoudException("No products found with current parameters")
+
+    def get_order_list(
+        self,
+        status: str,
+        end_time: str,
+        start_time: str = None,
+        fields: Union[str, List[str]] = None,
+        locale_site: str = None,
+        page_no: int = None,
+        page_size: int = None,
+        **kwargs,
+    ) -> models.OrderListResponse:
+        """Retrieve a list of affiliate orders from AliExpress.
 
         Args:
+        ----
             start_time (str): Start time in format 'YYYY-MM-DD HH:MM:SS'.
             end_time (str): End time in format 'YYYY-MM-DD HH:MM:SS'.
             fields (str | list[str]): The fields to include in the results list.
@@ -343,29 +389,32 @@ class AliexpressApi:
             status (str): Status filter for the orders, e.g., 'Payment Completed'.
 
         Returns:
+        -------
             OrderListResponse: Contains response information and the list of orders.
 
         Raises:
+        ------
             ProductsNotFoundException: If no orders are found for the specified parameters.
             ApiRequestException: If the API request fails.
+
         """
         request = aliapi.rest.AliexpressAffiliateOrderListRequest()
         request.app_signature = self._app_signature
         request.start_time = start_time
         request.end_time = end_time
-        request.fields = ','.join(fields) if isinstance(fields, list) else fields
+        request.fields = ",".join(fields) if isinstance(fields, list) else fields
         request.locale_site = locale_site
         request.page_no = page_no
         request.page_size = page_size
         request.status = status
 
         # Llamada a la API
-        response = api_request(request, 'aliexpress_affiliate_order_list_response')
+        response = api_request(request, "aliexpress_affiliate_order_list_response")
 
         # Verificar si se obtuvieron órdenes
         if response.current_record_count > 0:
             return response  # Retorna la respuesta completa con los datos de órdenes
         else:
-            raise OrdersNotFoundException("No orders found for the specified parameters")
-
-
+            raise OrdersNotFoundException(
+                "No orders found for the specified parameters"
+            )

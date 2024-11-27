@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
-"""
-Created on 2012-7-3
+"""Created on 2012-7-3
 
 @author: lihao
 """
-
 
 import hashlib
 import http.client as httplib
@@ -55,7 +52,7 @@ def sign(secret, parameters):
 
         parameters = "%s%s%s" % (
             secret,
-            str().join("%s%s" % (key, parameters[key]) for key in keys),
+            "".join("%s%s" % (key, parameters[key]) for key in keys),
             secret,
         )
     parameters = parameters.encode("utf-8")
@@ -72,20 +69,19 @@ def mixStr(pstr):
         return str(pstr)
 
 
-class FileItem(object):
+class FileItem:
     def __init__(self, filename=None, content=None):
         self.filename = filename
         self.content = content
 
 
-class MultiPartForm(object):
+class MultiPartForm:
     """Accumulate the data to be used when posting a form."""
 
     def __init__(self):
         self.form_fields = []
         self.files = []
         self.boundary = "PYTHON_SDK_BOUNDARY"
-        return
 
     def get_content_type(self):
         return "multipart/form-data; boundary=%s" % self.boundary
@@ -93,7 +89,6 @@ class MultiPartForm(object):
     def add_field(self, name, value):
         """Add a simple field to the form data."""
         self.form_fields.append((name, str(value)))
-        return
 
     def add_file(self, fieldname, filename, fileHandle, mimetype=None):
         """Add a file to be uploaded."""
@@ -103,7 +98,6 @@ class MultiPartForm(object):
         self.files.append(
             (mixStr(fieldname), mixStr(filename), mixStr(mimetype), mixStr(body))
         )
-        return
 
     def __str__(self):
         """Return a string representing the form data, including attached files."""
@@ -185,7 +179,7 @@ class RequestException(Exception):
     pass
 
 
-class RestApi(object):
+class RestApi:
     # ===========================================================================
     # Rest api的基类
     # ===========================================================================
@@ -312,7 +306,7 @@ class RestApi(object):
             value = self.__dict__[key]
             if (
                 not key.startswith("__")
-                and not key in self.getMultipartParas()
+                and key not in self.getMultipartParas()
                 and not key.startswith("_RestApi__")
                 and value is not None
             ):
