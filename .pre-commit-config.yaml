@@ -6,27 +6,27 @@ repos:
       - id: ruff
         args:
           - --fix
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
       - id: ruff-format
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
   - repo: "https://github.com/pre-commit/pre-commit-hooks"
     rev: "v4.5.0"
     hooks:
       - id: end-of-file-fixer
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
       - id: trailing-whitespace
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
       - id: check-json
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
       - id: check-toml
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
       - id: check-yaml
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
   - repo: "https://github.com/pre-commit/mirrors-mypy"
     rev: "v1.13.0"
     hooks:
@@ -34,4 +34,4 @@ repos:
         name: "Check type hints (mypy)"
         args: [--ignore-missing-imports]
         verbose: true
-        exclude: ^aliexpress_api/
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
