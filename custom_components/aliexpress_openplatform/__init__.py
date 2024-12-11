@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from homeassistant.const import Platform
 
 from .const import DOMAIN
-from .sensor import AliexpressOpenPlatformCoordinator
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -22,6 +21,8 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up Aliexpress OpenPlatform from a config entry."""
     # Check if the coordinator already exists to avoid double setup
+    from .sensor import AliexpressOpenPlatformCoordinator  # Importación diferida
+
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 

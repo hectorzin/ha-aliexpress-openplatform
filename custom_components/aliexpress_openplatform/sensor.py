@@ -6,8 +6,6 @@ from datetime import date, datetime, timedelta, timezone
 import logging
 from typing import TYPE_CHECKING, Any, Mapping
 
-from aliexpress_api import AliexpressApi, models
-
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
@@ -20,6 +18,7 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
+from .aliexpress_api_handler import get_order_list
 from .const import CONF_APP_KEY, CONF_APP_SECRET, DOMAIN
 
 if TYPE_CHECKING:
@@ -58,67 +57,88 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             name="Aliexpress OpenPlatform",
             update_interval=timedelta(minutes=5),
         )
-        app_key = config_entry.data[CONF_APP_KEY]
-        app_secret = config_entry.data[CONF_APP_SECRET]
-        self._client = AliexpressApi(
-            app_key, app_secret, models.Language.ES, models.Currency.EUR
-        )
+        self.config_entry = config_entry
 
     async def _async_update_data(self) -> dict:
         """Fetch order data from Aliexpress API and process it."""
         try:
-            # Define date range for orders (last 180 days)
-            # Fetch orders via Aliexpress API
-
             now = datetime.now(tz=timezone.utc)
             start_time = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-            response = await self._get_data(start_time, 0)
-            orders = response.orders.order
+            app_key = self.config_entry.data[CONF_APP_KEY]
+            app_secret = self.config_entry.data[CONF_APP_SECRET]
 
-            total_paid = sum(order.paid_amount for order in orders)
-            total_commissions = sum(order.estimated_paid_commission for order in orders)
+            response = await self._get_data(app_key, app_secret, start_time, 1)
 
-            while response.current_page_no < response.total_page_no - 1:
-                response = await self._get_data(
-                    start_time, response.current_page_no + 1
+            orders = response.get("orders", {}).get("order", [])
+
+            if not isinstance(orders, list):
+                _LOGGER.error(
+                    "Se esperaba una lista en 'orders.order', pero se recibió: %s",
+                    type(orders),
                 )
-                orders = response.orders.order
-                total_paid += sum(order.paid_amount for order in orders)
+                orders = []
+
+            total_paid = sum(int(order.get("paid_amount", 0)) for order in orders)
+            total_commissions = sum(
+                int(order.get("estimated_paid_commission", 0)) for order in orders
+            )
+
+            while int(response.get("current_page_no", 0)) < int(
+                response.get("total_page_no", 0)
+            ):
+                response = await self._get_data(
+                    app_key,
+                    app_secret,
+                    start_time,
+                    int(response.get("current_page_no", 0)) + 1,
+                )
+
+                orders = response.get("orders", {}).get("order", [])
+
+                if not isinstance(orders, list):
+                    _LOGGER.error(
+                        "Se esperaba una lista en 'orders.order', pero se recibió: %s",
+                        type(orders),
+                    )
+                    orders = []
+
+                total_paid += sum(order.get("paid_amount", 0) for order in orders)
                 total_commissions += sum(
-                    order.estimated_paid_commission for order in orders
+                    order.get("estimated_paid_commission", 0) for order in orders
                 )
 
         except Exception as err:
             error_message = "An unexpected error occurred"
-            _LOGGER.exception(error_message)
+            _LOGGER.exception("%s. Respuesta completa: %s", error_message, response)
             raise UpdateFailed(error_message) from err
 
         return {
             "total_paid": total_paid / 100.0,
             "total_commissions": total_commissions / 100.0,
-            "total_orders": response.total_record_count,
+            "total_orders": response.get("total_record_count", 0),
             "last_reset": start_time,
         }
 
     async def _get_data(
-        self, start_time: datetime, page: int
-    ) -> models.OrderListResponse:
+        self, app_key: str, app_secret: str, start_time: datetime, page: int
+    ) -> dict[str, Any]:
+        """Fetch data from AliExpress API."""
         now = datetime.now(tz=timezone.utc)
+
+        query_params = {
+            "status": "Payment Completed",
+            "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        pagination = {"page_no": page, "page_size": 50}
+
         return await self.hass.async_add_executor_job(
-            self._client.get_order_list,  # pylint: disable=no-member
-            "Payment Completed",
-            start_time.strftime("%Y-%m-%d %H:%M:%S"),
-            now.strftime("%Y-%m-%d %H:%M:%S"),
-            [
-                "order_number",
-                "paid_amount",
-                "estimated_paid_commission",
-                "created_time",
-            ],
-            "global",
-            page,
-            50,
+            get_order_list,
+            app_key,
+            app_secret,
+            query_params,
+            pagination,
         )
 
 
