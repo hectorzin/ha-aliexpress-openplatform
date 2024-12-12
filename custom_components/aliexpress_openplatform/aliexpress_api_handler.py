@@ -10,9 +10,48 @@ from typing import Any
 
 import requests
 
+from .iop import IopClient, IopRequest
+
 # Base URL for the AliExpress API
 ALIEXPRESS_API_URL = "https://api-sg.aliexpress.com/sync"
 _LOGGER = logging.getLogger(__name__)
+
+
+def get_order_list(
+    app_key: str,
+    app_secret: str,
+    query_params: dict[str, Any],
+    pagination: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    """Make an API call to `aliexpress.affiliate.order.list` using the AliExpress SDK."""
+    # Configuración inicial del cliente
+    client = IopClient(ALIEXPRESS_API_URL, app_key, app_secret)
+
+    # Creación de la solicitud
+    request = IopRequest("aliexpress.affiliate.order.list", "POST")
+    for key, value in query_params.items():
+        request.add_api_param(key, value)
+    for key, value in (pagination or {}).items():
+        request.add_api_param(key, str(value))  # Convertimos valores a cadenas
+
+    # Ejecución de la solicitud
+    response = client.execute(request)
+
+    # Validación de la respuesta
+    if not response:
+        message = response.message if response else "Unknown error"
+        code = response.code if response else "Unknown code"
+        error_message = f"API returned an error: {message} (Code: {code})"
+        raise ValueError(error_message)
+
+    # Procesamiento de los datos
+    data = response.body
+    main_key = next((key for key in data if key.endswith("_response")), None)
+    if not main_key or "resp_result" not in data[main_key]:
+        error_message = f"Unexpected API response format: {data}"
+        raise ValueError(error_message)
+
+    return data[main_key]["resp_result"].get("result", {})
 
 
 def generate_signature(secret: str, params: dict[str, Any]) -> str:
@@ -41,7 +80,7 @@ def generate_signature(secret: str, params: dict[str, Any]) -> str:
     )
 
 
-def get_order_list(
+def get_order_list_http_request(
     app_key: str,
     app_secret: str,
     query_params: dict[str, Any],
