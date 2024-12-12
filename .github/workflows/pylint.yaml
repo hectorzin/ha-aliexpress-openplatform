@@ -41,4 +41,4 @@ jobs:
 
       - name: 🚀 Run Mypy
         run: |
-          poetry run mypy custom_components/aliexpress_openplatform --exclude '^custom_components/aliexpress_openplatform/iop/'
+          poetry run mypy custom_components/aliexpress_openplatform --ignore=iop
