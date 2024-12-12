@@ -26,12 +26,8 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache: "poetry"
 
-      - name: 🔄 Update Lock File
-        run: poetry lock --no-update
-
-      - name: 🏗 Synchronize Poetry lock file
-        run: |
-          poetry lock --no-update || poetry lock
+      - name: 🔄 Synchronize Poetry Lock File
+        run: poetry lock --no-update || poetry lock
 
       - name: 🏗 Install Python dependencies
         run: poetry install --with dev --no-interaction
@@ -41,4 +37,4 @@ jobs:
 
       - name: 🚀 Run Mypy
         run: |
-          poetry run mypy custom_components/aliexpress_openplatform --ignore=iop
+          poetry run mypy custom_components/aliexpress_openplatform --exclude custom_components/aliexpress_openplatform/iop
