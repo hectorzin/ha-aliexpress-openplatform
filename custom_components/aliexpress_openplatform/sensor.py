@@ -65,19 +65,14 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             now = datetime.now(tz=timezone.utc)
             start_time = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-            app_key = self.config_entry.data[CONF_APP_KEY]
-            app_secret = self.config_entry.data[CONF_APP_SECRET]
+            if self.config_entry is not None:
+                app_key = self.config_entry.data[CONF_APP_KEY]
+                app_secret = self.config_entry.data[CONF_APP_SECRET]
+            else:
+                self._handle_config_entry_error()
 
             response = await self._get_data(app_key, app_secret, start_time, 1)
-
-            orders = response.get("orders", {}).get("order", [])
-
-            if not isinstance(orders, list):
-                _LOGGER.error(
-                    "Se esperaba una lista en 'orders.order', pero se recibió: %s",
-                    type(orders),
-                )
-                orders = []
+            orders = self._validate_orders(response)
 
             total_paid = sum(int(order.get("paid_amount", 0)) for order in orders)
             total_commissions = sum(
@@ -93,25 +88,18 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
                     start_time,
                     int(response.get("current_page_no", 0)) + 1,
                 )
+                new_orders = self._validate_orders(response)
 
-                orders = response.get("orders", {}).get("order", [])
-
-                if not isinstance(orders, list):
-                    _LOGGER.error(
-                        "Se esperaba una lista en 'orders.order', pero se recibió: %s",
-                        type(orders),
-                    )
-                    orders = []
-
-                total_paid += sum(order.get("paid_amount", 0) for order in orders)
+                total_paid += sum(
+                    int(order.get("paid_amount", 0)) for order in new_orders
+                )
                 total_commissions += sum(
-                    order.get("estimated_paid_commission", 0) for order in orders
+                    int(order.get("estimated_paid_commission", 0))
+                    for order in new_orders
                 )
 
-        except Exception as err:
-            error_message = "An unexpected error occurred"
-            _LOGGER.exception("%s. Respuesta completa: %s", error_message, response)
-            raise UpdateFailed(error_message) from err
+        except UpdateFailed as err:
+            self._handle_update_exception(err, locals().get("response"))
 
         return {
             "total_paid": total_paid / 100.0,
@@ -119,6 +107,31 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             "total_orders": response.get("total_record_count", 0),
             "last_reset": start_time,
         }
+
+    def _handle_config_entry_error(self) -> None:
+        """Handle errors related to missing configuration entry."""
+        error_message = "Config entry is None. Cannot fetch app_key and app_secret."
+        raise ValueError(error_message)
+
+    def _validate_orders(self, response: dict) -> list:
+        """Validate and extract orders from the API response."""
+        orders = response.get("orders", {}).get("order", [])
+        if not isinstance(orders, list):
+            error_message = (
+                f"Expected a list in 'orders.order', but received: {type(orders)}"
+            )
+            _LOGGER.error(error_message)
+            orders = []
+        return orders
+
+    def _handle_update_exception(self, err: Exception, response: dict | None) -> None:
+        """Handle exceptions that occur during the update process."""
+        error_message = "An unexpected error occurred"
+        if response:
+            _LOGGER.exception("%s. Complete response: %s", error_message, response)
+        else:
+            _LOGGER.exception(error_message)
+        raise UpdateFailed(error_message) from err
 
     async def _get_data(
         self, app_key: str, app_secret: str, start_time: datetime, page: int
