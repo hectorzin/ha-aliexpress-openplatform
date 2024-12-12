@@ -12,7 +12,7 @@ import platform
 import socket
 import time
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 # dir = os.getenv('HOME')
 dir = expanduser("~")
