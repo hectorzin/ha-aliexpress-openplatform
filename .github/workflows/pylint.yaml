@@ -27,7 +27,7 @@ jobs:
           cache: "poetry"
 
       - name: 🏗 Install Python dependencies
-        run: poetry install --no-interaction
+        run: poetry install --with dev --no-interaction
 
       - name: 🚀 Run Pylint
         run: poetry run pylint custom_components/aliexpress_openplatform --ignore=iop --disable=import-error,too-few-public-methods
