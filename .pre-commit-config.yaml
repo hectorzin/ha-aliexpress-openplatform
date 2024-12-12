@@ -34,7 +34,7 @@ repos:
         args:
           - --ignore=custom_components/aliexpress_openplatform/iop
           - --disable=import-error,too-few-public-methods
-        exclude: ^(custom_components/aliexpress_openplatform/iop/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
   - repo: "https://github.com/pre-commit/mirrors-mypy"
     rev: "v1.13.0"
     hooks:
