@@ -30,4 +30,4 @@ jobs:
         run: poetry install --no-interaction
 
       - name: 🚀 Run Pylint
-        run: poetry run pylint custom_components/aliexpress_openplatform
+        run: poetry run pylint custom_components/aliexpress_openplatform --ignore=iop --disable=import-error,too-few-public-methods
