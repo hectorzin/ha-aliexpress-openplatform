@@ -36,6 +36,6 @@ jobs:
       - name: 🚀 Run Pylint
         run: poetry run pylint custom_components/aliexpress_openplatform --ignore=iop --disable=import-error,too-few-public-methods
 
-      - name: 🏗 Run Mypy
+      - name: 🚀 Run Mypy
         run: |
-          poetry run mypy custom_components/aliexpress_openplatform --exclude custom_components/aliexpress_openplatform/iop/
+          poetry run mypy custom_components/aliexpress_openplatform --exclude '^custom_components/aliexpress_openplatform/iop/'
