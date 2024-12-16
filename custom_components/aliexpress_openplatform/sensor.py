@@ -43,6 +43,9 @@ async def async_setup_entry(
             AliexpressCommissionsSensor(coordinator),
             AliexpressOrderCountSensor(coordinator),
             AliexpressTotalPaidSensor(coordinator),
+            AliexpressAffiliateCommissionsSensor(coordinator),
+            AliexpressInfluencerCommissionsSensor(coordinator),
+            AliexpressLastOrderSensor(coordinator),
         ]
     )
 
@@ -60,6 +63,60 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         )
         self.config_entry = config_entry
 
+    def _calculate_last_order(self, orders: list[dict]) -> dict[str, Any] | None:
+        """Calculate the details for the last order group."""
+        if not orders:
+            return None
+
+        # getting `paid_time` of first order (it's the last order arrived)
+        last_paid_time = orders[0].get("paid_time", "")
+        order_platform = orders[0].get("order_platform", "unknown")
+
+        # filtering orthers that share same `paid_time`
+        last_orders = [
+            order for order in orders if order.get("paid_time") == last_paid_time
+        ]
+
+        total_commission = sum(
+            int(order.get("estimated_paid_commission", 0))
+            + int(order.get("new_buyer_bonus_commission", 0))
+            for order in last_orders
+        )
+        total_paid_amount = sum(
+            int(order.get("paid_amount", 0)) for order in last_orders
+        )
+
+        platforms = {order.get("order_platform") for order in last_orders}
+        order_platform = "mixed" if len(platforms) > 1 else platforms.pop()
+
+        return {
+            "total_commission": total_commission / 100.0,
+            "total_paid_amount": total_paid_amount / 100.0,
+            "order_platform": order_platform,
+            "paid_time": last_paid_time,
+        }
+
+    def _calculate_stats(self, orders: list[dict]) -> dict[str, int]:
+        """Calculate affiliate, influencer commissions and total paid."""
+        stats = {
+            "affiliate_commissions": 0,
+            "influencer_commissions": 0,
+            "total_paid": 0,
+        }
+        for order in orders:
+            platform = order.get("order_platform")
+            commission = int(order.get("estimated_paid_commission", 0))
+            commission += int(order.get("new_buyer_bonus_commission", 0))
+            paid_amount = int(order.get("paid_amount", 0))
+
+            stats["total_paid"] += paid_amount
+            if platform == "affiliate_platform":
+                stats["affiliate_commissions"] += commission
+            else:
+                stats["influencer_commissions"] += commission
+
+        return stats
+
     async def _async_update_data(self) -> dict:
         """Fetch order data from Aliexpress API and process it."""
         try:
@@ -72,16 +129,10 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             else:
                 self._handle_config_entry_error()
 
-            response = await self._get_data(app_key, app_secret, start_time, 1)
-            orders = self._validate_orders(response)
+            all_orders = []
 
-            total_paid = sum(int(order.get("paid_amount", 0)) for order in orders)
-            total_commissions = sum(
-                int(order.get("estimated_paid_commission", 0)) for order in orders
-            )
-            total_commissions += sum(
-                int(order.get("new_buyer_bonus_commission", 0)) for order in orders
-            )
+            response = await self._get_data(app_key, app_secret, start_time, 1)
+            all_orders.extend(self._validate_orders(response))
 
             while int(response.get("current_page_no", 0)) < int(
                 response.get("total_page_no", 0)
@@ -92,26 +143,25 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
                     start_time,
                     int(response.get("current_page_no", 0)) + 1,
                 )
-                new_orders = self._validate_orders(response)
-                total_paid += sum(
-                    int(order.get("paid_amount", 0)) for order in new_orders
-                )
-                total_commissions += sum(
-                    int(order.get("estimated_paid_commission", 0))
-                    for order in new_orders
-                )
-                total_commissions += sum(
-                    int(order.get("new_buyer_bonus_commission", 0))
-                    for order in new_orders
-                )
+                all_orders.extend(self._validate_orders(response))
+
+            stats = self._calculate_stats(all_orders)
+
+            last_order = self._calculate_last_order(all_orders)
 
         except UpdateFailed as err:
             self._handle_update_exception(err, locals().get("response"))
 
         return {
-            "total_paid": total_paid / 100.0,
-            "total_commissions": total_commissions / 100.0,
-            "total_orders": response.get("total_record_count", 0),
+            "affiliate_commissions": stats["affiliate_commissions"] / 100.0,
+            "influencer_commissions": stats["influencer_commissions"] / 100.0,
+            "total_paid": stats["total_paid"] / 100.0,
+            "total_commissions": (
+                stats["affiliate_commissions"] + stats["influencer_commissions"]
+            )
+            / 100.0,
+            "total_orders": len(all_orders),
+            "last_order": last_order,
             "last_reset": start_time,
         }
 
@@ -208,6 +258,96 @@ class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
         }
 
 
+class AliexpressAffiliateCommissionsSensor(SensorEntity, CoordinatorEntity):
+    """Sensor for tracking total affiliate commissions earned."""
+
+    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
+        """Initialize the affiliate commissions sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_affiliate_commissions"
+        self.entity_description = SensorEntityDescription(
+            name="Affiliate Commissions",
+            key="aliexpress_affiliate_commissions",
+            icon="mdi:cash-multiple",
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=CURRENCY_USD,
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        """Return device information for this sensor."""
+        return {
+            "identifiers": {(DOMAIN, "aliexpress_device")},
+            "name": "Aliexpress OpenPlatform",
+            "manufacturer": "Aliexpress",
+            "model": "OpenPlatform API",
+            "configuration_url": "https://portals.aliexpress.com",
+        }
+
+    @property
+    def native_value(self) -> StateType | date | datetime | Decimal:
+        """Return the total affiliate commissions if data is available."""
+        return (
+            self.coordinator.data.get("affiliate_commissions")
+            if self.coordinator.data
+            else None
+        )
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }
+
+
+class AliexpressInfluencerCommissionsSensor(SensorEntity, CoordinatorEntity):
+    """Sensor for tracking total influencer commissions earned."""
+
+    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
+        """Initialize the influencer commissions sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_influencer_commissions"
+        self.entity_description = SensorEntityDescription(
+            name="Influencer Commissions",
+            key="aliexpress_influencer_commissions",
+            icon="mdi:cash-multiple",
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=CURRENCY_USD,
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        """Return device information for this sensor."""
+        return {
+            "identifiers": {(DOMAIN, "aliexpress_device")},
+            "name": "Aliexpress OpenPlatform",
+            "manufacturer": "Aliexpress",
+            "model": "OpenPlatform API",
+            "configuration_url": "https://portals.aliexpress.com",
+        }
+
+    @property
+    def native_value(self) -> StateType | date | datetime | Decimal:
+        """Return the total influencer commissions if data is available."""
+        return (
+            self.coordinator.data.get("influencer_commissions")
+            if self.coordinator.data
+            else None
+        )
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return entity specific state attributes."""
+        return {
+            "last_reset": self.coordinator.data.get("last_reset")
+            if self.coordinator.data
+            else None,
+        }
+
+
 class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
     """Sensor for tracking total number of orders."""
 
@@ -288,4 +428,52 @@ class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
             "last_reset": self.coordinator.data.get("last_reset")
             if self.coordinator.data
             else None,
+        }
+
+
+class AliexpressLastOrderSensor(SensorEntity, CoordinatorEntity):
+    """Sensor for tracking the last processed order."""
+
+    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
+        """Initialize the Last Order sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = "aliexpress_last_order"
+        self.entity_description = SensorEntityDescription(
+            name="Last Order",
+            key="aliexpress_last_order",
+            icon="mdi:history",
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=CURRENCY_USD,
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        """Return device information for this sensor."""
+        return {
+            "identifiers": {(DOMAIN, "aliexpress_device")},
+            "name": "Aliexpress OpenPlatform",
+            "manufacturer": "Aliexpress",
+            "model": "OpenPlatform API",
+            "configuration_url": "https://portals.aliexpress.com",
+        }
+
+    @property
+    def native_value(self) -> StateType | None:
+        """Return the total commission for the last order group if data is available."""
+        last_order_data = self.coordinator.data.get("last_order")
+        if last_order_data:
+            return last_order_data.get("total_commission")
+        return None
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return additional attributes for the last order."""
+        last_order_data = self.coordinator.data.get("last_order")
+        if not last_order_data:
+            return None
+
+        return {
+            "order_platform": last_order_data.get("order_platform"),
+            "paid_time": last_order_data.get("paid_time"),
+            "total_paid_amount": last_order_data.get("total_paid_amount"),
         }
