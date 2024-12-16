@@ -11,7 +11,6 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import CURRENCY_EURO
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -30,6 +29,7 @@ if TYPE_CHECKING:
     from homeassistant.helpers.typing import StateType
 
 _LOGGER = logging.getLogger(__name__)
+CURRENCY_USD = "$"
 
 
 async def async_setup_entry(
@@ -166,7 +166,7 @@ class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
     """Sensor for tracking total commissions earned."""
 
     def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
-        """Initialize the Total commissions' sensor."""
+        """Initialize the Total commissions sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = "aliexpress_total_commissions"
         self.entity_description = SensorEntityDescription(
@@ -174,8 +174,18 @@ class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
             key="aliexpress_total_commissions",
             icon="mdi:cash-multiple",
             state_class=SensorStateClass.TOTAL_INCREASING,
-            native_unit_of_measurement=CURRENCY_EURO,
+            native_unit_of_measurement=CURRENCY_USD,
         )
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device information for this sensor."""
+        return {
+            "identifiers": {(DOMAIN, "aliexpress_device")},
+            "name": "Aliexpress OpenPlatform",
+            "manufacturer": "Aliexpress",
+            "model": "OpenPlatform API",
+        }
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
@@ -211,6 +221,16 @@ class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
         )
 
     @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device information for this sensor."""
+        return {
+            "identifiers": {(DOMAIN, "aliexpress_device")},
+            "name": "Aliexpress OpenPlatform",
+            "manufacturer": "Aliexpress",
+            "model": "OpenPlatform API",
+        }
+
+    @property
     def native_value(self) -> StateType | date | datetime | Decimal:
         """Return the total number of orders if data is available."""
         return (
@@ -239,8 +259,18 @@ class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
             key="aliexpress_total_paid",
             icon="mdi:currency-usd",
             state_class=SensorStateClass.TOTAL_INCREASING,
-            native_unit_of_measurement=CURRENCY_EURO,
+            native_unit_of_measurement=CURRENCY_USD,
         )
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device information for this sensor."""
+        return {
+            "identifiers": {(DOMAIN, "aliexpress_device")},
+            "name": "Aliexpress OpenPlatform",
+            "manufacturer": "Aliexpress",
+            "model": "OpenPlatform API",
+        }
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
