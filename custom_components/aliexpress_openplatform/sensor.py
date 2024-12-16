@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.device_registry import DeviceInfo
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.helpers.typing import StateType
 
@@ -178,13 +179,14 @@ class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
         )
 
     @property
-    def device_info(self) -> dict[str, Any]:
+    def device_info(self) -> DeviceInfo | None:
         """Return device information for this sensor."""
         return {
             "identifiers": {(DOMAIN, "aliexpress_device")},
             "name": "Aliexpress OpenPlatform",
             "manufacturer": "Aliexpress",
             "model": "OpenPlatform API",
+            "configuration_url": "https://portals.aliexpress.com",
         }
 
     @property
@@ -221,7 +223,7 @@ class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
         )
 
     @property
-    def device_info(self) -> dict[str, Any]:
+    def device_info(self) -> DeviceInfo | None:
         """Return device information for this sensor."""
         return {
             "identifiers": {(DOMAIN, "aliexpress_device")},
@@ -263,7 +265,7 @@ class AliexpressTotalPaidSensor(SensorEntity, CoordinatorEntity):
         )
 
     @property
-    def device_info(self) -> dict[str, Any]:
+    def device_info(self) -> DeviceInfo | None:
         """Return device information for this sensor."""
         return {
             "identifiers": {(DOMAIN, "aliexpress_device")},
