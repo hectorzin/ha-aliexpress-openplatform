@@ -78,6 +78,9 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             total_commissions = sum(
                 int(order.get("estimated_paid_commission", 0)) for order in orders
             )
+            total_commissions += sum(
+                int(order.get("new_buyer_bonus_commission", 0)) for order in orders
+            )
 
             while int(response.get("current_page_no", 0)) < int(
                 response.get("total_page_no", 0)
@@ -89,12 +92,15 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
                     int(response.get("current_page_no", 0)) + 1,
                 )
                 new_orders = self._validate_orders(response)
-
                 total_paid += sum(
                     int(order.get("paid_amount", 0)) for order in new_orders
                 )
                 total_commissions += sum(
                     int(order.get("estimated_paid_commission", 0))
+                    for order in new_orders
+                )
+                total_commissions += sum(
+                    int(order.get("new_buyer_bonus_commission", 0))
                     for order in new_orders
                 )
 
@@ -139,8 +145,9 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         """Fetch data from AliExpress API."""
         now = datetime.now(tz=timezone.utc)
 
+        # Valid options for status: "", "Payment Completed", "Buyer Confirmed Receipt", "Completed Settlement", "Invalid"
         query_params = {
-            "status": "Payment Completed",
+            "status": "",
             "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
             "end_time": now.strftime("%Y-%m-%d %H:%M:%S"),
         }
