@@ -6,6 +6,5 @@
   "documentation": "https://github.com/hectorzin/ha-aliexpress-openplatform",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/hectorzin/ha-aliexpress-openplatform/issues",
-  "version": "0.0.1",
-  "translations": ["en", "es"]
+  "version": "0.0.1"
 }
