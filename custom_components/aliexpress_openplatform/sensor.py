@@ -202,6 +202,10 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
 
     def _get_api_credentials(self) -> dict[str, str]:
         """Extract API credentials from the configuration entry."""
+        if self.config_entry is None:
+            error_message = "Config entry is None. Cannot access configuration data."
+            raise ValueError(error_message)
+
         return {
             "app_key": self.config_entry.data[CONF_APP_KEY],
             "app_secret": self.config_entry.data[CONF_APP_SECRET],
