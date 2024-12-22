@@ -1,0 +1,38 @@
+{
+  "config": {
+    "error": {
+      "unknown": "Error inesperado"
+    },
+    "step": {
+      "user": {
+        "description": "Necesitas una clave API de [Aliexpress Openplatform](https://openservice.aliexpress.com/).",
+        "data": {
+          "app_key": "API KEY",
+          "app_secret": "API Secret"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "aliexpress_total_commissions": {
+        "name": "Comisiones totales"
+      },
+      "aliexpress_affiliate_commissions": {
+        "name": "Comisiones afiliados"
+      },
+      "aliexpress_influencer_commissions": {
+        "name": "Comisiones influencer"
+      },
+      "aliexpress_total_orders": {
+        "name": "Pedidos totales"
+      },
+      "aliexpress_total_paid": {
+        "name": "Volumen de ventas generado"
+      },
+      "aliexpress_last_order": {
+        "name": "Último pedido"
+      }
+    }
+  }
+}
