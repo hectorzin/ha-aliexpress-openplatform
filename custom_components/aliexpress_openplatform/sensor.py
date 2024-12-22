@@ -62,6 +62,16 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=5),
         )
         self.config_entry = config_entry
+        self._last_order_id: int | None = None
+        self._last_end_time: datetime | None = None
+        self._last_order_data: dict[str, Any] | None = None
+        self._accumulated_totals = {  # accumulated data until last reading
+            "affiliate_commissions": 0.0,
+            "influencer_commissions": 0.0,
+            "total_paid": 0.0,
+            "total_commissions": 0.0,
+            "total_orders": 0.0,
+        }
 
     def _calculate_last_order(self, orders: list[dict]) -> dict[str, Any] | None:
         """Calculate the details for the last order group."""
@@ -96,73 +106,157 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             "paid_time": last_paid_time,
         }
 
-    def _calculate_stats(self, orders: list[dict]) -> dict[str, int]:
-        """Calculate affiliate, influencer commissions and total paid."""
-        stats = {
-            "affiliate_commissions": 0,
-            "influencer_commissions": 0,
-            "total_paid": 0,
-        }
+    def _calculate_totals(
+        self, orders: list[dict]
+    ) -> tuple[dict[str, float], int | None]:
+        """Calculate totals for a list of orders."""
+        affiliate_commissions = 0
+        influencer_commissions = 0
+        total_paid = 0
+        last_processed_order = None
+
         for order in orders:
+            order_id = int(order.get("order_id", 0))
+
+            # if finding last processed order, then stop processing
+            if self._last_order_id and order_id == self._last_order_id:
+                break
+
             platform = order.get("order_platform")
             commission = int(order.get("estimated_paid_commission", 0))
             commission += int(order.get("new_buyer_bonus_commission", 0))
             paid_amount = int(order.get("paid_amount", 0))
+            total_paid += paid_amount
 
-            stats["total_paid"] += paid_amount
             if platform == "affiliate_platform":
-                stats["affiliate_commissions"] += commission
+                affiliate_commissions += commission
             else:
-                stats["influencer_commissions"] += commission
+                influencer_commissions += commission
 
-        return stats
+            if last_processed_order is None:
+                last_processed_order = order_id
+
+        total_commissions = affiliate_commissions + influencer_commissions
+
+        return {
+            "affiliate_commissions": affiliate_commissions / 100.0,
+            "influencer_commissions": influencer_commissions / 100.0,
+            "total_paid": total_paid / 100.0,
+            "total_commissions": total_commissions / 100.0,
+            "total_orders": len(orders),
+        }, last_processed_order
+
+    async def _get_data(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Fetch data from AliExpress API."""
+        query_params = {
+            "status": "",
+            "start_time": params["start_time"].strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time": params["end_time"].strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        pagination = {"page_no": params["page"], "page_size": 50}
+
+        return await self.hass.async_add_executor_job(
+            get_order_list,
+            params["app_key"],
+            params["app_secret"],
+            query_params,
+            pagination,
+        )
 
     async def _async_update_data(self) -> dict:
         """Fetch order data from Aliexpress API and process it."""
         try:
             now = datetime.now(tz=timezone.utc)
-            start_time = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            start_time, end_time = self._determine_time_range(now)
 
             if self.config_entry is not None:
-                app_key = self.config_entry.data[CONF_APP_KEY]
-                app_secret = self.config_entry.data[CONF_APP_SECRET]
+                api_credentials = self._get_api_credentials()
             else:
                 self._handle_config_entry_error()
 
-            all_orders = []
+            params = self._initialize_params(api_credentials, start_time, end_time)
 
-            response = await self._get_data(app_key, app_secret, start_time, 1)
-            all_orders.extend(self._validate_orders(response))
-
-            while int(response.get("current_page_no", 0)) < int(
-                response.get("total_page_no", 0)
-            ):
-                response = await self._get_data(
-                    app_key,
-                    app_secret,
-                    start_time,
-                    int(response.get("current_page_no", 0)) + 1,
-                )
-                all_orders.extend(self._validate_orders(response))
-
-            stats = self._calculate_stats(all_orders)
-
-            last_order = self._calculate_last_order(all_orders)
-
+            all_orders = await self._fetch_all_orders(params)
         except UpdateFailed as err:
             self._handle_update_exception(err, locals().get("response"))
+            return {}
+        return self._process_orders(all_orders, start_time, end_time)
+
+    def _determine_time_range(self, now: datetime) -> tuple[datetime, datetime]:
+        """Determine the start and end times for the API query."""
+        if self._last_end_time:
+            start_time = self._last_end_time
+        else:
+            # First day of the current bimonthly period
+            current_month = now.month
+            first_month_of_bimester = ((current_month - 1) // 2) * 2 + 1
+            start_time = now.replace(
+                month=first_month_of_bimester,
+                day=1,
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+        return start_time, now
+
+    def _get_api_credentials(self) -> dict[str, str]:
+        """Extract API credentials from the configuration entry."""
+        if self.config_entry is None:
+            error_message = "Config entry is None. Cannot access configuration data."
+            raise ValueError(error_message)
 
         return {
-            "affiliate_commissions": stats["affiliate_commissions"] / 100.0,
-            "influencer_commissions": stats["influencer_commissions"] / 100.0,
-            "total_paid": stats["total_paid"] / 100.0,
-            "total_commissions": (
-                stats["affiliate_commissions"] + stats["influencer_commissions"]
-            )
-            / 100.0,
-            "total_orders": len(all_orders),
-            "last_order": last_order,
+            "app_key": self.config_entry.data[CONF_APP_KEY],
+            "app_secret": self.config_entry.data[CONF_APP_SECRET],
+        }
+
+    def _initialize_params(
+        self, api_credentials: dict[str, str], start_time: datetime, end_time: datetime
+    ) -> dict:
+        """Initialize the query parameters for the API call."""
+        return {
+            **api_credentials,
+            "start_time": start_time,
+            "end_time": end_time,
+            "page": 1,
+        }
+
+    async def _fetch_all_orders(self, params: dict) -> list:
+        """Fetch all orders from the API across all pages."""
+        all_orders = []
+        response = await self._get_data(params)
+        all_orders.extend(self._validate_orders(response))
+
+        while int(response.get("current_page_no", 0)) < int(
+            response.get("total_page_no", 0)
+        ):
+            params["page"] = int(response.get("current_page_no", 0)) + 1
+            response = await self._get_data(params)
+            all_orders.extend(self._validate_orders(response))
+
+        return all_orders
+
+    def _process_orders(
+        self, all_orders: list, start_time: datetime, end_time: datetime
+    ) -> dict:
+        """Process fetched orders and update totals."""
+        # Calculate new order totals
+        new_totals, last_processed_order = self._calculate_totals(all_orders)
+
+        # Add to accumulated totals
+        for key in self._accumulated_totals:
+            self._accumulated_totals[key] += new_totals[key]
+
+        self._last_order_id = last_processed_order
+        self._last_end_time = end_time
+        if all_orders:
+            self._last_order_data = self._calculate_last_order(all_orders)
+
+        return {
+            **self._accumulated_totals,
             "last_reset": start_time,
+            "last_order": self._last_order_data,
         }
 
     def _handle_config_entry_error(self) -> None:
@@ -189,28 +283,6 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         else:
             _LOGGER.exception(error_message)
         raise UpdateFailed(error_message) from err
-
-    async def _get_data(
-        self, app_key: str, app_secret: str, start_time: datetime, page: int
-    ) -> dict[str, Any]:
-        """Fetch data from AliExpress API."""
-        now = datetime.now(tz=timezone.utc)
-
-        # Valid options for status: "", "Payment Completed", "Buyer Confirmed Receipt", "Completed Settlement", "Invalid"
-        query_params = {
-            "status": "",
-            "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "end_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        pagination = {"page_no": page, "page_size": 50}
-
-        return await self.hass.async_add_executor_job(
-            get_order_list,
-            app_key,
-            app_secret,
-            query_params,
-            pagination,
-        )
 
 
 class AliexpressCommissionsSensor(SensorEntity, CoordinatorEntity):
@@ -460,6 +532,8 @@ class AliexpressLastOrderSensor(SensorEntity, CoordinatorEntity):
     @property
     def native_value(self) -> StateType | None:
         """Return the total commission for the last order group if data is available."""
+        if not self.coordinator.data:
+            return None
         last_order_data = self.coordinator.data.get("last_order")
         if last_order_data:
             return last_order_data.get("total_commission")
@@ -468,6 +542,9 @@ class AliexpressLastOrderSensor(SensorEntity, CoordinatorEntity):
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         """Return additional attributes for the last order."""
+        if not self.coordinator.data:
+            return None
+
         last_order_data = self.coordinator.data.get("last_order")
         if not last_order_data:
             return None
