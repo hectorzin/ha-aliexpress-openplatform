@@ -5,7 +5,7 @@
     },
     "step": {
       "user": {
-        "description": "You need need a API KEY from [Aliexpress Openplatform](https://openservice.aliexpress.com/).",
+        "description": "You need an API KEY from [Aliexpress Openplatform](https://openservice.aliexpress.com/).",
         "data": {
           "app_key": "API KEY",
           "app_secret": "API Secret"

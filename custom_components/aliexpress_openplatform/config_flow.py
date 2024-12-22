@@ -12,7 +12,9 @@ from homeassistant import config_entries
 from .const import CONF_APP_KEY, CONF_APP_SECRET, DOMAIN
 
 if TYPE_CHECKING:
-    from homeassistant.data_entry_flow import FlowResult
+    from homeassistant.data_entry_flow import (
+        ConfigFlowResult,  # Mover dentro del bloque TYPE_CHECKING
+    )
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:  # No es necesario cambiar el tipo aquí
         """Handle the initial step."""
         self._errors = {}
 

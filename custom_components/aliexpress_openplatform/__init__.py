@@ -22,6 +22,7 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up Aliexpress OpenPlatform from a config entry."""
     # Check if the coordinator already exists to avoid double setup
+
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 

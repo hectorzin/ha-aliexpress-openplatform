@@ -1,4 +1,5 @@
 __pycache__
 .idea
 /.run/HASS.run.xml
-/node_modules/.cache/prettier/.prettier-caches/4d1fdc488973c4bc9db8a526ddae99461cd06004.json
+/node_modules/.cache/
+custom_components/test.py

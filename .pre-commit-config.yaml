@@ -6,27 +6,35 @@ repos:
       - id: ruff
         args:
           - --fix
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
       - id: ruff-format
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
   - repo: "https://github.com/pre-commit/pre-commit-hooks"
     rev: "v4.5.0"
     hooks:
       - id: end-of-file-fixer
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
       - id: trailing-whitespace
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
       - id: check-json
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
       - id: check-toml
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
       - id: check-yaml
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
+  - repo: https://github.com/PyCQA/pylint
+    rev: "v3.0.0"
+    hooks:
+      - id: pylint
+        args:
+          - --ignore=custom_components/aliexpress_openplatform/iop
+          - --disable=import-error,too-few-public-methods
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
   - repo: "https://github.com/pre-commit/mirrors-mypy"
     rev: "v1.13.0"
     hooks:
@@ -34,4 +42,4 @@ repos:
         name: "Check type hints (mypy)"
         args: [--ignore-missing-imports]
         verbose: true
-        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/aliexpress_api/)
+        exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
