@@ -1,2 +1,5 @@
 __pycache__
 .idea
+/.run/HASS.run.xml
+/node_modules/.cache/
+custom_components/test.py

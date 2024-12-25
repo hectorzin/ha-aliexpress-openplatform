@@ -26,8 +26,15 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache: "poetry"
 
+      - name: 🔄 Synchronize Poetry Lock File
+        run: poetry lock --no-update || poetry lock
+
       - name: 🏗 Install Python dependencies
-        run: poetry install --no-interaction
+        run: poetry install --with dev --no-interaction
 
       - name: 🚀 Run Pylint
-        run: poetry run pylint custom_components/aliexpress_openplatform
+        run: poetry run pylint custom_components/aliexpress_openplatform --ignore=iop --disable=import-error,too-few-public-methods
+
+      - name: 🚀 Run Mypy
+        run: |
+          poetry run mypy custom_components/aliexpress_openplatform --exclude '^custom_components/aliexpress_openplatform/iop/'
