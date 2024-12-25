@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Mapping
 
 from homeassistant.components.sensor import (
@@ -16,10 +15,10 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
 )
 
-from .aliexpress_coordinator import AliexpressOpenPlatformCoordinator
-from .const import DOMAIN, DEVICE_INFO
+from .const import DEVICE_INFO, DOMAIN
 
 if TYPE_CHECKING:
+    from datetime import date, datetime
     from decimal import Decimal
 
     from homeassistant.config_entries import ConfigEntry
@@ -27,12 +26,14 @@ if TYPE_CHECKING:
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.helpers.typing import StateType
 
+    from .aliexpress_coordinator import AliexpressOpenPlatformCoordinator
+
 _LOGGER = logging.getLogger(__name__)
 CURRENCY_USD = "$"
 
 
 async def async_setup_entry(
-        hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Initialize Aliexpress sensors from a configuration entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
@@ -49,8 +50,10 @@ async def async_setup_entry(
 
 
 class AliexpressSensor(SensorEntity, CoordinatorEntity):
+    """Aliexpress Base sensor class."""
 
-    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator):
+    def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
+        """Initialize the values."""
         super().__init__(coordinator)
         self.coordinator = coordinator
         self._state = None
@@ -63,6 +66,7 @@ class AliexpressSensor(SensorEntity, CoordinatorEntity):
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
+        """Return the sensor's state."""
         return self._state
 
     @callback
@@ -73,6 +77,7 @@ class AliexpressSensor(SensorEntity, CoordinatorEntity):
 
     @property
     def last_reset(self) -> datetime | None:
+        """Return the last reset sensor's date."""
         return self._last_reset
 
 
@@ -90,10 +95,11 @@ class AliexpressTotalCommissionsSensor(AliexpressSensor):
             state_class=SensorStateClass.TOTAL,
             native_unit_of_measurement=CURRENCY_USD,
         )
+
     @callback
     def _handle_coordinator_update(self) -> None:
         super()._handle_coordinator_update()
-        self._state = self.coordinator.data['total_commissions']
+        self._state = self.coordinator.data["total_commissions"]
         self.async_write_ha_state()
 
 
@@ -106,7 +112,7 @@ class AliexpressAffiliateCommissionsSensor(AliexpressSensor):
         self._attr_unique_id = "aliexpress_affiliate_commissions"
         self.entity_description = SensorEntityDescription(
             name="Affiliate Commissions",
-            key=f"aliexpress_affiliate_commissions",
+            key="aliexpress_affiliate_commissions",
             icon="mdi:cash-multiple",
             state_class=SensorStateClass.TOTAL,
             native_unit_of_measurement=CURRENCY_USD,
@@ -115,7 +121,7 @@ class AliexpressAffiliateCommissionsSensor(AliexpressSensor):
     @callback
     def _handle_coordinator_update(self) -> None:
         super()._handle_coordinator_update()
-        self._state = self.coordinator.data['affiliate_commissions']
+        self._state = self.coordinator.data["affiliate_commissions"]
         self.async_write_ha_state()
 
 
@@ -137,11 +143,11 @@ class AliexpressInfluencerCommissionsSensor(AliexpressSensor):
     @callback
     def _handle_coordinator_update(self) -> None:
         super()._handle_coordinator_update()
-        self._state = self.coordinator.data['influencer_commissions']
+        self._state = self.coordinator.data["influencer_commissions"]
         self.async_write_ha_state()
 
 
-class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
+class AliexpressOrderCountSensor(AliexpressSensor):
     """Sensor for tracking total number of orders."""
 
     def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
@@ -157,9 +163,9 @@ class AliexpressOrderCountSensor(SensorEntity, CoordinatorEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Get the update from coordinator"""
+        """Get the update from coordinator."""
         super()._handle_coordinator_update()
-        self._state = self.coordinator.data['total_orders']
+        self._state = self.coordinator.data["total_orders"]
         self.async_write_ha_state()
 
 
@@ -181,7 +187,7 @@ class AliexpressTotalPaidSensor(AliexpressSensor):
     @callback
     def _handle_coordinator_update(self) -> None:
         super()._handle_coordinator_update()
-        self._state = self.coordinator.data['total_paid']
+        self._state = self.coordinator.data["total_paid"]
         self.async_write_ha_state()
 
 
@@ -202,7 +208,7 @@ class AliexpressLastOrderSensor(AliexpressSensor):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        self._state = self.coordinator.data['last_order']['total_commission']
+        self._state = self.coordinator.data["last_order"]["total_commission"]
         self.async_write_ha_state()
 
     @property
