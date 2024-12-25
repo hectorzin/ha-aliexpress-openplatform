@@ -15,7 +15,8 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
 )
 
-from .const import DEVICE_INFO, DOMAIN
+from .aliexpress_coordinator import AliexpressOpenPlatformCoordinator
+from .const import DOMAIN
 
 if TYPE_CHECKING:
     from datetime import date, datetime
@@ -26,7 +27,6 @@ if TYPE_CHECKING:
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.helpers.typing import StateType
 
-    from .aliexpress_coordinator import AliexpressOpenPlatformCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 CURRENCY_USD = "$"
@@ -49,20 +49,28 @@ async def async_setup_entry(
     )
 
 
-class AliexpressSensor(SensorEntity, CoordinatorEntity):
+class AliexpressSensor(
+    SensorEntity, CoordinatorEntity[AliexpressOpenPlatformCoordinator]
+):
     """Aliexpress Base sensor class."""
 
     def __init__(self, coordinator: AliexpressOpenPlatformCoordinator) -> None:
         """Initialize the values."""
+        self._coordinator = None
         super().__init__(coordinator)
-        self.coordinator = coordinator
         self._state = None
         self._last_reset = None
 
     @property
     def device_info(self) -> DeviceInfo | None:
         """Return device information for this sensor."""
-        return DEVICE_INFO
+        return {
+            "identifiers": {(DOMAIN, "aliexpress_device")},
+            "name": "Aliexpress OpenPlatform",
+            "manufacturer": "Aliexpress",
+            "model": "OpenPlatform API",
+            "configuration_url": "https://portals.aliexpress.com",
+        }
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
