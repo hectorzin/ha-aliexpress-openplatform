@@ -6,15 +6,18 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import TYPE_CHECKING, Any
 
+from aliexpress_api import AliexpressApi
+
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
 
-from .aliexpress_api_handler import get_order_list
 from .const import CONF_APP_KEY, CONF_APP_SECRET
 
 if TYPE_CHECKING:
+    from aliexpress_api.models import Order, OrderListResponse
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
@@ -43,6 +46,13 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             "total_commissions": 0.0,
             "total_orders": 0.0,
         }
+        api_credentials = self._get_api_credentials()
+        self.client = AliexpressApi(
+            api_credentials["app_key"],
+            api_credentials["app_secret"],
+            language="en",
+            currency="USD",
+        )
 
     def get_value(self, name: str) -> Any | None:
         """Return the value from coordinator data or none."""
@@ -51,30 +61,25 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
 
         return None
 
-    def _calculate_last_order(self, orders: list[dict]) -> dict[str, Any] | None:
+    def _calculate_last_order(self, orders: list[Order]) -> dict[str, Any] | None:
         """Calculate the details for the last order group."""
         if not orders:
             return None
 
         # getting `paid_time` of first order (it's the last order arrived)
-        last_paid_time = orders[0].get("paid_time", "")
-        order_platform = orders[0].get("order_platform", "unknown")
+        last_paid_time = orders[0].paid_time
+        order_platform = orders[0].order_platform
 
         # filtering others that share same `paid_time`
-        last_orders = [
-            order for order in orders if order.get("paid_time") == last_paid_time
-        ]
+        last_orders = [order for order in orders if order.paid_time == last_paid_time]
 
         total_commission = sum(
-            int(order.get("estimated_paid_commission", 0))
-            + int(order.get("new_buyer_bonus_commission", 0))
+            int(order.estimated_paid_commission) + int(order.new_buyer_bonus_commission)
             for order in last_orders
         )
-        total_paid_amount = sum(
-            int(order.get("paid_amount", 0)) for order in last_orders
-        )
+        total_paid_amount = sum(int(order.paid_amount) for order in last_orders)
 
-        platforms = {order.get("order_platform") for order in last_orders}
+        platforms = {order.order_platform for order in last_orders}
         order_platform = "mixed" if len(platforms) > 1 else platforms.pop()
 
         return {
@@ -85,7 +90,7 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         }
 
     def _calculate_totals(
-        self, orders: list[dict]
+        self, orders: list[Order]
     ) -> tuple[dict[str, float], int | None]:
         """Calculate totals for a list of orders."""
         affiliate_commissions = 0
@@ -94,16 +99,16 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         last_processed_order = None
 
         for order in orders:
-            order_id = int(order.get("order_id", 0))
+            order_id = int(order.order_id)
 
             # if finding last processed order, then stop processing
             if self._last_order_id and order_id == self._last_order_id:
                 break
 
-            platform = order.get("order_platform")
-            commission = int(order.get("estimated_paid_commission", 0))
-            commission += int(order.get("new_buyer_bonus_commission", 0))
-            paid_amount = int(order.get("paid_amount", 0))
+            platform = order.order_platform
+            commission = int(order.estimated_paid_commission)
+            commission += int(order.new_buyer_bonus_commission)
+            paid_amount = int(order.paid_amount)
             total_paid += paid_amount
 
             if platform == "affiliate_platform":
@@ -124,7 +129,7 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             "total_orders": len(orders),
         }, last_processed_order
 
-    async def _get_data(self, params: dict[str, Any]) -> dict[str, Any]:
+    async def _get_data(self, params: dict[str, Any]) -> OrderListResponse:
         """Fetch data from AliExpress API."""
         query_params = {
             "status": "",
@@ -134,11 +139,23 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         pagination = {"page_no": params["page"], "page_size": 50}
 
         return await self.hass.async_add_executor_job(
-            get_order_list,
-            params["app_key"],
-            params["app_secret"],
-            query_params,
-            pagination,
+            self.client.get_order_list,
+            query_params["status"],
+            query_params["start_time"],
+            query_params["end_time"],
+            [
+                "order_id",
+                "order_number",
+                "paid_amount",
+                "estimated_paid_commission",
+                "new_buyer_bonus_commission",
+                "created_time",
+                "paid_time",
+                "order_platform",
+            ],
+            "global",
+            pagination["page_no"],
+            pagination["page_size"],
         )
 
     async def _async_update_data(self) -> dict:
@@ -147,12 +164,7 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             now = datetime.now(tz=timezone.utc)
             start_time, end_time = self._determine_time_range(now)
 
-            if self.config_entry is not None:
-                api_credentials = self._get_api_credentials()
-            else:
-                self._handle_config_entry_error()
-
-            params = self._initialize_params(api_credentials, start_time, end_time)
+            params = self._initialize_params(start_time, end_time)
 
             all_orders = await self._fetch_all_orders(params)
         except UpdateFailed as err:
@@ -189,12 +201,9 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
             "app_secret": self.config_entry.data[CONF_APP_SECRET],
         }
 
-    def _initialize_params(
-        self, api_credentials: dict[str, str], start_time: datetime, end_time: datetime
-    ) -> dict:
+    def _initialize_params(self, start_time: datetime, end_time: datetime) -> dict:
         """Initialize the query parameters for the API call."""
         return {
-            **api_credentials,
             "start_time": start_time,
             "end_time": end_time,
             "page": 1,
@@ -206,10 +215,8 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         response = await self._get_data(params)
         all_orders.extend(self._validate_orders(response))
 
-        while int(response.get("current_page_no", 0)) < int(
-            response.get("total_page_no", 0)
-        ):
-            params["page"] = int(response.get("current_page_no", 0)) + 1
+        while int(response.current_page_no) < int(response.total_page_no):
+            params["page"] = int(response.current_page_no) + 1
             response = await self._get_data(params)
             all_orders.extend(self._validate_orders(response))
 
@@ -242,9 +249,9 @@ class AliexpressOpenPlatformCoordinator(DataUpdateCoordinator):
         error_message = "Config entry is None. Cannot fetch app_key and app_secret."
         raise ValueError(error_message)
 
-    def _validate_orders(self, response: dict) -> list:
+    def _validate_orders(self, response: list) -> list:
         """Validate and extract orders from the API response."""
-        orders = response.get("orders", {}).get("order", [])
+        orders = response
         if not isinstance(orders, list):
             error_message = (
                 f"Expected a list in 'orders.order', but received: {type(orders)}"
