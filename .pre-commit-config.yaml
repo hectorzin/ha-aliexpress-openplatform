@@ -1,7 +1,7 @@
 minimum_pre_commit_version: "3.0.4"
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.2
+    rev: v0.9.3
     hooks:
       - id: ruff
         args:
@@ -10,7 +10,7 @@ repos:
       - id: ruff-format
         exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
   - repo: "https://github.com/pre-commit/pre-commit-hooks"
-    rev: "v4.5.0"
+    rev: "v5.0.0"
     hooks:
       - id: end-of-file-fixer
         exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
@@ -28,7 +28,7 @@ repos:
       - id: prettier
         exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
   - repo: https://github.com/PyCQA/pylint
-    rev: "v3.0.0"
+    rev: "v3.3.3"
     hooks:
       - id: pylint
         args:
@@ -36,7 +36,7 @@ repos:
           - --disable=import-error,too-few-public-methods
         exclude: ^(node_modules/|custom_components/aliexpress_openplatform/iop/)
   - repo: "https://github.com/pre-commit/mirrors-mypy"
-    rev: "v1.13.0"
+    rev: "v1.14.1"
     hooks:
       - id: "mypy"
         name: "Check type hints (mypy)"
